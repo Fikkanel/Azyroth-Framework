@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "azyroth-framework"
+version = "0.1.0"
+description = "A Python web framework inspired by Laravel."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "Flask",
+    "SQLAlchemy",
+    "python-dotenv",
+    "Click",
+    "alembic",
+    "pymysql",
+]
+
+# Membuat perintah `azyroth` di terminal
+[project.scripts]
+azyroth = "azyroth.cli:main_cli"

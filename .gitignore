@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+
+# Database
+*.sqlite3
+
+# Environment
+.env
+
+# Project specific
+.idea/
+*.swp
