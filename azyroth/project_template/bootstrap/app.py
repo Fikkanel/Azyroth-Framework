@@ -4,42 +4,35 @@ from dotenv import load_dotenv
 
 def create_app():
     """Membuat dan mengkonfigurasi instance aplikasi."""
-    app = Flask('app')
 
-    # --- BAGIAN YANG DIPERBAIKI & DITAMBAHKAN ---
-
-    # Tentukan path dan muat file .env
+    # Tentukan root path proyek secara eksplisit
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+    app = Flask(
+        'app',
+        template_folder=os.path.join(project_root, 'resources', 'views'),
+        static_folder=os.path.join(project_root, 'public')
+    )
+    
+    # Muat .env dari root proyek aplikasi
     load_dotenv(os.path.join(project_root, '.env'))
 
     # Muat Konfigurasi dari folder config/
     from config import app as app_config, database as db_config
     app.config.update(app_config.CONFIG)
-    app.config['DATABASE_CONFIG'] = db_config.CONFIG # Konfigurasi DB
+    app.config['DATABASE_CONFIG'] = db_config.CONFIG
     app.secret_key = app.config.get('KEY')
 
-    # Impor Service Provider
+    # Impor dan jalankan Service Provider
     from app.Providers.AppServiceProvider import AppServiceProvider
     from app.Providers.DatabaseServiceProvider import DatabaseServiceProvider
 
-    # Daftarkan semua provider
-    providers = [
-        AppServiceProvider(app),
-        DatabaseServiceProvider(app)
-    ]
-
-    # Jalankan method register() dari semua provider
+    providers = [AppServiceProvider(app), DatabaseServiceProvider(app)]
     for provider in providers:
-        if hasattr(provider, 'register'):
-            provider.register()
-
-    # Jalankan method boot() dari semua provider
+        if hasattr(provider, 'register'): provider.register()
     for provider in providers:
-        if hasattr(provider, 'boot'):
-            provider.boot()
+        if hasattr(provider, 'boot'): provider.boot()
             
-    # --- AKHIR DARI BAGIAN PERBAIKAN ---
-
     # Registrasi Rute
     from routes.web import register_routes
     register_routes(app)
