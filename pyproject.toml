@@ -5,9 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "azyroth-framework"
 version = "0.1.0"
-description = "A Python web framework inspired by Laravel."
-readme = "README.md"
-requires-python = ">=3.9"
+# ... (bagian project tetap sama) ...
 dependencies = [
     "Flask",
     "SQLAlchemy",
@@ -17,11 +15,12 @@ dependencies = [
     "pymysql",
 ]
 
-# Membuat perintah `azyroth` di terminal
 [project.scripts]
 azyroth = "azyroth.cli:main_cli"
 
-# -- BAGIAN PERBAIKAN --
-# Memberitahu setuptools untuk menyertakan semua file di dalam project_template
+# Perhatikan ada [tool.setuptools] sekarang
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.package-data]
 azyroth = ["project_template/**"]
