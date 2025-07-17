@@ -1,17 +1,19 @@
 import os
 import shutil
+import subprocess
 import click
+import importlib
+import inspect
 
-# Fungsi untuk membuat path absolut di dalam proyek
-def make_path(project_root, *args):
-    return os.path.join(project_root, *args)
+# --- FUNGSI UTAMA CLI ---
 
 @click.group()
 def main_cli():
     """Azyroth Framework Command Line Interface."""
     pass
 
-# ... (kode untuk perintah 'new' dan 'inspire' tetap sama) ...
+# --- PERINTAH-PERINTAH UTAMA ---
+
 @main_cli.command()
 @click.argument('project_name')
 def new(project_name):
@@ -24,10 +26,28 @@ def new(project_name):
         return
 
     try:
+        # Salin seluruh template
         shutil.copytree(source_dir, dest_dir)
-        click.echo(f"✅ Project '{project_name}' created successfully!")
-        click.echo(f"Navigate to your project: cd {project_name}")
-        click.echo("Then run 'pip install -r requirements.txt' to get started.")
+        
+        # Ganti nama .env.example menjadi .env
+        env_example_path = os.path.join(dest_dir, '.env.example')
+        env_path = os.path.join(dest_dir, '.env')
+        if os.path.exists(env_example_path):
+            os.rename(env_example_path, env_path)
+            click.echo("✅ .env.example renamed to .env")
+
+        # Inisialisasi Git Repository
+        if click.confirm("Do you want to initialize a new Git repository?", default=True):
+            try:
+                subprocess.run(["git", "init"], cwd=dest_dir, check=True, capture_output=True)
+                click.echo("✅ Git repository initialized.")
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                click.echo("Warning: 'git init' failed. Is Git installed and in your PATH?", err=True)
+
+        click.echo(f"\n🎉 Project '{project_name}' created successfully!")
+        click.echo(f"   Navigate to your project: cd {project_name}")
+        click.echo("   Next steps: setup your .env file, create a database, and run 'azyroth db:migrate'.")
+
     except Exception as e:
         click.echo(f"Error creating project: {e}", err=True)
 
@@ -36,28 +56,23 @@ def inspire():
     """Displays an inspiring quote."""
     click.echo("Simplicity is the ultimate sophistication. - Leonardo da Vinci")
 
+# --- PERINTAH-PERINTAH GENERATOR ---
 
-# -- TAMBAHKAN PERINTAH BARU DI SINI --
 @main_cli.command("make:controller")
 @click.argument('name')
 def make_controller(name):
     """Creates a new controller file."""
-    
-    # Pastikan nama controller diakhiri dengan 'Controller'
     if not name.endswith('Controller'):
         class_name = f"{name.capitalize()}Controller"
     else:
         class_name = name.capitalize()
 
-    # Tentukan path tempat file akan dibuat
-    # Perintah ini harus dijalankan dari root direktori proyek aplikasi
-    controller_path = make_path(os.getcwd(), 'app', 'Http', 'Controllers', f"{class_name}.py")
+    controller_path = os.path.join(os.getcwd(), 'app', 'Http', 'Controllers', f"{class_name}.py")
 
     if os.path.exists(controller_path):
         click.echo(f"Error: Controller '{class_name}' already exists.", err=True)
         return
 
-    # Template dasar untuk file controller
     template = f"""from flask import request, render_template
 
 class {class_name}:
@@ -65,34 +80,77 @@ class {class_name}:
     def index(self):
         # Your logic here
         return "Hello from {class_name}!"
-
-    # Tambahkan metode lain sesuai kebutuhan
-    # def create(self):
-    #     pass
-    #
-    # def store(self):
-    #     pass
-    #
-    # def show(self, id):
-    #     pass
-    #
-    # def edit(self, id):
-    #     pass
-    #
-    # def update(self, id):
-    #     pass
-    #
-    # def destroy(self, id):
-    #     pass
 """
     
     try:
         with open(controller_path, 'w') as f:
             f.write(template)
-        click.echo(f"✅ Controller '{class_name}' created successfully at '{controller_path}'")
+        click.echo(f"✅ Controller '{class_name}' created successfully.")
     except Exception as e:
         click.echo(f"Error creating controller: {e}", err=True)
 
+# --- GRUP PERINTAH DATABASE ---
+
+@main_cli.group()
+def db():
+    """Database related commands (migrate, seed)."""
+    pass
+
+@db.command("migrate")
+@click.option('--message', '-m', help="Revision message for a new migration file.")
+def db_migrate(message):
+    """Runs database migrations or generates a new migration file."""
+    command = ["alembic"]
+    if message:
+        command.extend(["revision", "--autogenerate", "-m", message])
+        click.echo(f"Generating new migration with message: {message}")
+    else:
+        command.extend(["upgrade", "head"])
+        click.echo("Running database migrations...")
+    
+    try:
+        subprocess.run(command, check=True)
+    except FileNotFoundError:
+        click.echo("Error: 'alembic' command not found. Is it installed in your venv?", err=True)
+    except subprocess.CalledProcessError as e:
+        click.echo(f"Alembic command failed. See error output above.", err=True)
+
+@db.command("seed")
+@click.option('--class', 'seeder_class', help="The specific seeder class to run.")
+def db_seed(seeder_class):
+    """Seeds the database with initial data from seeder files."""
+    try:
+        from bootstrap.app import create_app
+        app = create_app()
+        with app.app_context():
+            seeder_path = os.path.join(os.getcwd(), 'database', 'seeders')
+            if not os.path.exists(seeder_path):
+                click.echo("Error: 'database/seeders' directory not found.", err=True)
+                return
+
+            if seeder_class:
+                # Jalankan seeder spesifik
+                module_name = f"database.seeders.{seeder_class}"
+                mod = importlib.import_module(module_name)
+                seeder = getattr(mod, seeder_class)()
+                seeder.run()
+                click.echo(f"Seeder '{seeder_class}' completed.")
+            else:
+                # Jalankan semua seeder
+                for filename in os.listdir(seeder_path):
+                    if filename.endswith('.py') and not filename.startswith('__'):
+                        module_name = f"database.seeders.{filename[:-3]}"
+                        mod = importlib.import_module(module_name)
+                        for name, obj in inspect.getmembers(mod, inspect.isclass):
+                            if hasattr(obj, 'run') and 'Base' not in str(obj):
+                                click.echo(f"Running seeder: {name}")
+                                seeder = obj()
+                                seeder.run()
+        click.echo("Database seeding completed.")
+    except ImportError as e:
+        click.echo(f"Import Error: {e}. Make sure you are in an Azyroth project root and venv is active.", err=True)
+    except Exception as e:
+        click.echo(f"An error occurred: {e}", err=True)
 
 if __name__ == '__main__':
     main_cli()
