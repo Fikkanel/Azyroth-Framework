@@ -26,17 +26,14 @@ def new(project_name):
         return
 
     try:
-        # Salin seluruh template
         shutil.copytree(source_dir, dest_dir)
         
-        # Ganti nama .env.example menjadi .env
         env_example_path = os.path.join(dest_dir, '.env.example')
         env_path = os.path.join(dest_dir, '.env')
         if os.path.exists(env_example_path):
             os.rename(env_example_path, env_path)
             click.echo("✅ .env.example renamed to .env")
 
-        # Inisialisasi Git Repository
         if click.confirm("Do you want to initialize a new Git repository?", default=True):
             try:
                 subprocess.run(["git", "init"], cwd=dest_dir, check=True, capture_output=True)
@@ -46,7 +43,7 @@ def new(project_name):
 
         click.echo(f"\n🎉 Project '{project_name}' created successfully!")
         click.echo(f"   Navigate to your project: cd {project_name}")
-        click.echo("   Next steps: setup your .env file, create a database, and run 'azyroth db:migrate'.")
+        click.echo("   Next steps: setup your .env file, create a database, and run 'azyroth db migrate'.")
 
     except Exception as e:
         click.echo(f"Error creating project: {e}", err=True)
@@ -96,12 +93,10 @@ def db():
     """Database related commands (migrate, seed)."""
     pass
 
-@db.command("migrate")
-@click.option('--message', '-m', help="Revision message for a new migration file.")
-def db_migrate(message):
-    """Runs database migrations or generates a new migration file."""
+def _run_alembic_command(message, is_migration):
+    """Fungsi helper untuk menjalankan perintah alembic."""
     command = ["alembic"]
-    if message:
+    if is_migration:
         command.extend(["revision", "--autogenerate", "-m", message])
         click.echo(f"Generating new migration with message: {message}")
     else:
@@ -112,15 +107,33 @@ def db_migrate(message):
         subprocess.run(command, check=True)
     except FileNotFoundError:
         click.echo("Error: 'alembic' command not found. Is it installed in your venv?", err=True)
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         click.echo(f"Alembic command failed. See error output above.", err=True)
+
+@db.command("migrate")
+@click.option('--message', '-m', help="Revision message for a new migration file.")
+def db_migrate(message):
+    """Runs database migrations or generates a new migration file."""
+    _run_alembic_command(message, is_migration=bool(message))
+
+# --- PERBAIKAN: Tambahkan alias 'make:migration' ---
+@main_cli.command("make:migration")
+@click.argument('message')
+def make_migration(message):
+    """[Alias] Creates a new migration file."""
+    _run_alembic_command(message, is_migration=True)
+
 
 @db.command("seed")
 @click.option('--class', 'seeder_class', help="The specific seeder class to run.")
 def db_seed(seeder_class):
     """Seeds the database with initial data from seeder files."""
     try:
+        # Menambahkan path proyek saat ini agar import bootstrap berhasil
+        import sys
+        sys.path.insert(0, os.getcwd())
         from bootstrap.app import create_app
+
         app = create_app()
         with app.app_context():
             seeder_path = os.path.join(os.getcwd(), 'database', 'seeders')
@@ -129,20 +142,18 @@ def db_seed(seeder_class):
                 return
 
             if seeder_class:
-                # Jalankan seeder spesifik
                 module_name = f"database.seeders.{seeder_class}"
                 mod = importlib.import_module(module_name)
                 seeder = getattr(mod, seeder_class)()
                 seeder.run()
                 click.echo(f"Seeder '{seeder_class}' completed.")
             else:
-                # Jalankan semua seeder
                 for filename in os.listdir(seeder_path):
                     if filename.endswith('.py') and not filename.startswith('__'):
                         module_name = f"database.seeders.{filename[:-3]}"
                         mod = importlib.import_module(module_name)
                         for name, obj in inspect.getmembers(mod, inspect.isclass):
-                            if hasattr(obj, 'run') and 'Base' not in str(obj):
+                            if hasattr(obj, 'run') and name != 'Base':
                                 click.echo(f"Running seeder: {name}")
                                 seeder = obj()
                                 seeder.run()
