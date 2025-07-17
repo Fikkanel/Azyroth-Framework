@@ -20,3 +20,8 @@ dependencies = [
 # Membuat perintah `azyroth` di terminal
 [project.scripts]
 azyroth = "azyroth.cli:main_cli"
+
+# -- BAGIAN PERBAIKAN --
+# Memberitahu setuptools untuk menyertakan semua file di dalam project_template
+[tool.setuptools.package-data]
+azyroth = ["project_template/**"]
