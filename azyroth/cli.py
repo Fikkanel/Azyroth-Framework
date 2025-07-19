@@ -81,6 +81,7 @@ def _start_flask_server(host, port):
         import sys
         sys.path.insert(0, os.getcwd())
         from public.index import app
+        # Debug diatur oleh config .env, tidak perlu di-pass lagi
         app.run(host=host, port=port)
     except ImportError:
         click.echo("Error: Could not find the application. Are you in a project root?", err=True)
@@ -110,7 +111,7 @@ def _start_localtunnel(port):
 # --- PERINTAH SERVE YANG DIPERBARUI ---
 
 @main_cli.command()
-@click.option('--host', default='127.0.0.1', help='The interface to bind to.')
+@click.option('--host', default='0.0.0.0', help='The interface to bind to.') # <-- PERUBAHAN DI SINI
 @click.option('--port', default=5000, help='The port to bind to.')
 @click.option('--public', is_flag=True, help='Expose the server to the internet using Localtunnel.')
 def serve(host, port, public):
@@ -157,7 +158,7 @@ class {class_name}:
 """
     _create_from_template("Controller", ['app', 'Http', 'Controllers', file_name], template)
 
-@main_cli.command("make:model")
+@main_li.command("make:model")
 @click.argument('name')
 def make_model(name):
     """Creates a new SQLAlchemy model file."""
