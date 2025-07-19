@@ -5,7 +5,17 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "azyroth-framework"
 version = "0.1.0"
-# ... (bagian project tetap sama) ...
+authors = [
+  { name="Fikkan", email="your-email@example.com" },
+]
+description = "A Python web framework inspired by Laravel."
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "Flask",
     "SQLAlchemy",
@@ -15,12 +25,16 @@ dependencies = [
     "pymysql",
 ]
 
+# Membuat perintah `azyroth` di terminal
 [project.scripts]
 azyroth = "azyroth.cli:main_cli"
 
-# Perhatikan ada [tool.setuptools] sekarang
+# Memberitahu setuptools untuk mematuhi MANIFEST.in
+# dan menyertakan file non-kode
 [tool.setuptools]
 include-package-data = true
 
+# Secara eksplisit menyertakan semua file di dalam project_template
+# Ini adalah perbaikan penting untuk masalah file yang tidak tercopy
 [tool.setuptools.package-data]
 azyroth = ["project_template/**"]
