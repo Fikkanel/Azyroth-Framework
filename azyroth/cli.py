@@ -6,6 +6,7 @@ import importlib
 import inspect
 import multiprocessing
 import time
+import sys
 
 # --- FUNGSI UTAMA DAN GRUP CLI ---
 
@@ -56,7 +57,7 @@ def new(project_name):
 
         if click.confirm("Initialize a new Git repository?", default=True):
             try:
-                subprocess.run(["git", "init"], cwd=dest_dir, check=True, capture_output=True)
+                subprocess.run(["git", "init"], cwd=dest_dir, check=True, capture_output=True, text=True)
                 click.echo("✅ Git repository initialized.")
             except (subprocess.CalledProcessError, FileNotFoundError):
                 click.echo("Warning: 'git init' failed. Is Git installed?", err=True)
@@ -78,42 +79,47 @@ def inspire():
 def _start_flask_server(host, port):
     """Fungsi untuk menjalankan server Flask."""
     try:
-        import sys
         sys.path.insert(0, os.getcwd())
         from public.index import app
-        # Debug diatur oleh config .env, tidak perlu di-pass lagi
-        app.run(host=host, port=port)
+        # use_reloader=False penting agar stabil dengan multiprocessing
+        app.run(host=host, port=port, use_reloader=False)
     except ImportError:
         click.echo("Error: Could not find the application. Are you in a project root?", err=True)
+    except Exception as e:
+        click.echo(f"An error occurred while starting the server: {e}", err=True)
 
-def _start_localtunnel(port):
-    """Fungsi untuk menjalankan Localtunnel."""
-    click.echo("Starting Localtunnel...")
+def _start_ssh_tunnel(port):
+    """Fungsi untuk menjalankan tunnel localhost.run."""
+    click.echo("Starting SSH tunnel with localhost.run...")
     try:
-        lt_process = subprocess.Popen(
-            ["lt", "--port", str(port)], 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.STDOUT, 
+        command = ["ssh", "-R", f"80:localhost:{port}", "localhost.run"]
+        tunnel_process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True
         )
-        for line in iter(lt_process.stdout.readline, ''):
-            if "your url is:" in line:
-                public_url = line.split(":")[-1].strip()
-                click.echo("✅ Localtunnel established.")
+        
+        # Baca output dari stderr (localhost.run mengirim URL ke stderr)
+        for line in iter(tunnel_process.stderr.readline, ''):
+            if "https" in line and "localhost.run" in line:
+                public_url = line.strip()
+                click.echo("✅ SSH tunnel established.")
                 click.echo(f"   Public URL: {public_url}")
+            if tunnel_process.poll() is not None:
                 break
-        lt_process.wait()
-    except FileNotFoundError:
-        click.echo("Error: 'lt' command not found. Please install Localtunnel with 'npm install -g localtunnel'", err=True)
-    except Exception as e:
-        click.echo(f"An error occurred with Localtunnel: {e}", err=True)
 
-# --- PERINTAH SERVE YANG DIPERBARUI ---
+    except FileNotFoundError:
+        click.echo("Error: 'ssh' command not found. Please install an SSH client (e.g., 'pkg install openssh').", err=True)
+    except Exception as e:
+        click.echo(f"An error occurred with the SSH tunnel: {e}", err=True)
+
+# --- PERINTAH SERVE ---
 
 @main_cli.command()
-@click.option('--host', default='0.0.0.0', help='The interface to bind to.') # <-- PERUBAHAN DI SINI
+@click.option('--host', default='127.0.0.1', help='The interface to bind to.')
 @click.option('--port', default=5000, help='The port to bind to.')
-@click.option('--public', is_flag=True, help='Expose the server to the internet using Localtunnel.')
+@click.option('--public', is_flag=True, help='Expose the server to the internet using localhost.run.')
 def serve(host, port, public):
     """Runs the Azyroth development server."""
     if not public:
@@ -121,23 +127,25 @@ def serve(host, port, public):
         _start_flask_server(host, port)
         return
 
+    # --- Logika untuk --public menggunakan multiprocessing ---
+    
     flask_process = multiprocessing.Process(target=_start_flask_server, args=(host, port))
-    lt_process = multiprocessing.Process(target=_start_localtunnel, args=(port,))
+    tunnel_process = multiprocessing.Process(target=_start_ssh_tunnel, args=(port,))
 
     try:
         click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
         flask_process.start()
-        time.sleep(2) 
-        lt_process.start()
+        time.sleep(2) # Beri waktu agar server flask siap
+        tunnel_process.start()
         flask_process.join()
-        lt_process.join()
+        tunnel_process.join()
     except KeyboardInterrupt:
         click.echo("\nStopping servers...")
     finally:
         if flask_process.is_alive():
             flask_process.terminate()
-        if lt_process.is_alive():
-            lt_process.terminate()
+        if tunnel_process.is_alive():
+            tunnel_process.terminate()
         click.echo("Servers stopped.")
 
 # --- PERINTAH-PERINTAH GENERATOR ---
@@ -177,6 +185,7 @@ class {class_name}(Base):
         return f"<{class_name}(id={{self.id}})>"
 """
     _create_from_template("Model", ['app', 'Models', file_name], template)
+
 
 # --- GRUP PERINTAH DATABASE ---
 @main_cli.group()
@@ -218,7 +227,6 @@ def make_migration(message):
 def db_seed(seeder_class):
     """Seeds the database with initial data."""
     try:
-        import sys
         sys.path.insert(0, os.getcwd())
         from bootstrap.app import create_app
         app = create_app()
