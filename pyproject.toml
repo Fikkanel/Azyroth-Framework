@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "azyroth-framework"
 version = "0.1.0"
 authors = [
-  { name="Fikkan", email="your-email@example.com" },
+  { name="Fikkanel", email="mfikkanel@gmail.com" },
 ]
 description = "A Python web framework inspired by Laravel."
 readme = "README.md"
