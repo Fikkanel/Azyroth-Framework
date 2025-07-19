@@ -4,7 +4,8 @@ import subprocess
 import click
 import importlib
 import inspect
-from pyngrok import ngrok, conf
+import multiprocessing
+import time
 
 # --- FUNGSI UTAMA DAN GRUP CLI ---
 
@@ -24,7 +25,6 @@ def _create_from_template(name, template_path_parts, template_content):
         return
     
     try:
-        # Pastikan direktori ada
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, 'w') as f:
             f.write(template_content)
@@ -63,7 +63,7 @@ def new(project_name):
 
         click.echo(f"\n🎉 Project '{project_name}' created successfully!")
         click.echo(f"   Navigate to your project: cd {project_name}")
-        click.echo("   Next steps: setup .env, create database, and run 'azyroth db:migrate'.")
+        click.echo("   Next steps: setup .env, create database, and run 'azyroth db migrate'.")
 
     except Exception as e:
         click.echo(f"Error creating project: {e}", err=True)
@@ -73,52 +73,71 @@ def inspire():
     """Displays an inspiring quote."""
     click.echo("Simplicity is the ultimate sophistication. - Leonardo da Vinci")
 
-# --- PERINTAH BARU: SERVE ---
+# --- FUNGSI UNTUK MENJALANKAN SERVER DAN TUNNEL ---
 
-@main_cli.command()
-@click.option('--host', default='127.0.0.1', help='The interface to bind to.')
-@click.option('--port', default=5000, help='The port to bind to.')
-@click.option('--public', is_flag=True, help='Expose the server to the internet using Ngrok.')
-def serve(host, port, public):
-    """Runs the Azyroth development server."""
-    
-    # Inisialisasi tunnel jika flag --public digunakan
-    public_url = None
-    if public:
-        try:
-            # Mengatur agar tidak membuka jendela browser ngrok
-            conf.get_default().authtoken_from_env = True
-            conf.get_default().monitor_thread = False
-            
-            # Membuat tunnel ke port lokal
-            public_url = ngrok.connect(port, "http")
-            click.echo("✅ Ngrok tunnel established.")
-            click.echo(f"   Public URL: {public_url}")
-        except Exception as e:
-            click.echo(f"Error starting Ngrok: {e}", err=True)
-            click.echo("Please ensure Ngrok is installed and you have set up your authtoken.", err=True)
-            return
-
-    click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
-    
+def _start_flask_server(host, port):
+    """Fungsi untuk menjalankan server Flask."""
     try:
         import sys
         sys.path.insert(0, os.getcwd())
         from public.index import app
-        
-        # Jalankan server (debug mode akan diambil dari config .env)
         app.run(host=host, port=port)
-
     except ImportError:
         click.echo("Error: Could not find the application. Are you in a project root?", err=True)
+
+def _start_localtunnel(port):
+    """Fungsi untuk menjalankan Localtunnel."""
+    click.echo("Starting Localtunnel...")
+    try:
+        lt_process = subprocess.Popen(
+            ["lt", "--port", str(port)], 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.STDOUT, 
+            text=True
+        )
+        for line in iter(lt_process.stdout.readline, ''):
+            if "your url is:" in line:
+                public_url = line.split(":")[-1].strip()
+                click.echo("✅ Localtunnel established.")
+                click.echo(f"   Public URL: {public_url}")
+                break
+        lt_process.wait()
+    except FileNotFoundError:
+        click.echo("Error: 'lt' command not found. Please install Localtunnel with 'npm install -g localtunnel'", err=True)
     except Exception as e:
-        click.echo(f"An error occurred: {e}", err=True)
+        click.echo(f"An error occurred with Localtunnel: {e}", err=True)
+
+# --- PERINTAH SERVE YANG DIPERBARUI ---
+
+@main_cli.command()
+@click.option('--host', default='127.0.0.1', help='The interface to bind to.')
+@click.option('--port', default=5000, help='The port to bind to.')
+@click.option('--public', is_flag=True, help='Expose the server to the internet using Localtunnel.')
+def serve(host, port, public):
+    """Runs the Azyroth development server."""
+    if not public:
+        click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
+        _start_flask_server(host, port)
+        return
+
+    flask_process = multiprocessing.Process(target=_start_flask_server, args=(host, port))
+    lt_process = multiprocessing.Process(target=_start_localtunnel, args=(port,))
+
+    try:
+        click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
+        flask_process.start()
+        time.sleep(2) 
+        lt_process.start()
+        flask_process.join()
+        lt_process.join()
+    except KeyboardInterrupt:
+        click.echo("\nStopping servers...")
     finally:
-        # Selalu pastikan tunnel Ngrok ditutup saat server berhenti
-        if public_url:
-            ngrok.disconnect(public_url)
-            ngrok.kill()
-            click.echo("Ngrok tunnel closed.")
+        if flask_process.is_alive():
+            flask_process.terminate()
+        if lt_process.is_alive():
+            lt_process.terminate()
+        click.echo("Servers stopped.")
 
 # --- PERINTAH-PERINTAH GENERATOR ---
 
@@ -138,7 +157,6 @@ class {class_name}:
 """
     _create_from_template("Controller", ['app', 'Http', 'Controllers', file_name], template)
 
-# --- PERINTAH BARU: MAKE:MODEL ---
 @main_cli.command("make:model")
 @click.argument('name')
 def make_model(name):
@@ -149,17 +167,15 @@ def make_model(name):
 from app.Models.User import Base # Ganti 'User' jika Base ada di file lain
 
 class {class_name}(Base):
-    __tablename__ = '{class_name.lower()}s' # Contoh: 'products'
+    __tablename__ = '{class_name.lower()}s'
 
     id = Column(Integer, primary_key=True)
-    # Tambahkan kolom-kolom Anda di sini
     # name = Column(String(255), nullable=False)
 
     def __repr__(self):
         return f"<{class_name}(id={{self.id}})>"
 """
     _create_from_template("Model", ['app', 'Models', file_name], template)
-
 
 # --- GRUP PERINTAH DATABASE ---
 @main_cli.group()
@@ -190,7 +206,6 @@ def db_migrate(message):
     """Runs all migrations or creates a new one if a message is provided."""
     _run_alembic_command(message)
 
-# Alias untuk membuat migrasi baru
 @main_cli.command("make:migration")
 @click.argument('message')
 def make_migration(message):
@@ -207,8 +222,28 @@ def db_seed(seeder_class):
         from bootstrap.app import create_app
         app = create_app()
         with app.app_context():
-            # ... (logika seeder tetap sama) ...
-            click.echo("Database seeding completed.")
+            seeder_path = os.path.join(os.getcwd(), 'database', 'seeders')
+            if not os.path.exists(seeder_path):
+                click.echo("Error: 'database/seeders' directory not found.", err=True)
+                return
+
+            if seeder_class:
+                module_name = f"database.seeders.{seeder_class}"
+                mod = importlib.import_module(module_name)
+                seeder = getattr(mod, seeder_class)()
+                seeder.run()
+                click.echo(f"Seeder '{seeder_class}' completed.")
+            else:
+                for filename in os.listdir(seeder_path):
+                    if filename.endswith('.py') and not filename.startswith('__'):
+                        module_name = f"database.seeders.{filename[:-3]}"
+                        mod = importlib.import_module(module_name)
+                        for name, obj in inspect.getmembers(mod, inspect.isclass):
+                            if hasattr(obj, 'run') and name != 'Base':
+                                click.echo(f"Running seeder: {name}")
+                                seeder = obj()
+                                seeder.run()
+        click.echo("Database seeding completed.")
     except Exception as e:
         click.echo(f"An error occurred: {e}", err=True)
 
