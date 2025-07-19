@@ -13,7 +13,6 @@ dependencies = [
     "Click",
     "alembic",
     "pymysql",
-    "pyngrok",
 ]
 
 [project.scripts]
