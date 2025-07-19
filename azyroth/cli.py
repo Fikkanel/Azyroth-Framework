@@ -158,7 +158,7 @@ class {class_name}:
 """
     _create_from_template("Controller", ['app', 'Http', 'Controllers', file_name], template)
 
-@main_li.command("make:model")
+@main_cli.command("make:model")
 @click.argument('name')
 def make_model(name):
     """Creates a new SQLAlchemy model file."""
