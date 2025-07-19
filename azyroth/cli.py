@@ -4,6 +4,7 @@ import subprocess
 import click
 import importlib
 import inspect
+from pyngrok import ngrok, conf
 
 # --- FUNGSI UTAMA DAN GRUP CLI ---
 
@@ -73,19 +74,51 @@ def inspire():
     click.echo("Simplicity is the ultimate sophistication. - Leonardo da Vinci")
 
 # --- PERINTAH BARU: SERVE ---
+
 @main_cli.command()
 @click.option('--host', default='127.0.0.1', help='The interface to bind to.')
 @click.option('--port', default=5000, help='The port to bind to.')
-def serve(host, port):
+@click.option('--public', is_flag=True, help='Expose the server to the internet using Ngrok.')
+def serve(host, port, public):
     """Runs the Azyroth development server."""
-    click.echo(f"Starting Azyroth server on http://{host}:{port}")
+    
+    # Inisialisasi tunnel jika flag --public digunakan
+    public_url = None
+    if public:
+        try:
+            # Mengatur agar tidak membuka jendela browser ngrok
+            conf.get_default().authtoken_from_env = True
+            conf.get_default().monitor_thread = False
+            
+            # Membuat tunnel ke port lokal
+            public_url = ngrok.connect(port, "http")
+            click.echo("✅ Ngrok tunnel established.")
+            click.echo(f"   Public URL: {public_url}")
+        except Exception as e:
+            click.echo(f"Error starting Ngrok: {e}", err=True)
+            click.echo("Please ensure Ngrok is installed and you have set up your authtoken.", err=True)
+            return
+
+    click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
+    
     try:
-        # Menjalankan server melalui modul agar pathnya benar
-        subprocess.run(["python", "-m", "public.index", "--host", host, "--port", str(port)])
-    except FileNotFoundError:
-        click.echo("Error: 'python' command not found. Is Python installed and in your PATH?", err=True)
-    except KeyboardInterrupt:
-        click.echo("\nServer stopped.")
+        import sys
+        sys.path.insert(0, os.getcwd())
+        from public.index import app
+        
+        # Jalankan server (debug mode akan diambil dari config .env)
+        app.run(host=host, port=port)
+
+    except ImportError:
+        click.echo("Error: Could not find the application. Are you in a project root?", err=True)
+    except Exception as e:
+        click.echo(f"An error occurred: {e}", err=True)
+    finally:
+        # Selalu pastikan tunnel Ngrok ditutup saat server berhenti
+        if public_url:
+            ngrok.disconnect(public_url)
+            ngrok.kill()
+            click.echo("Ngrok tunnel closed.")
 
 # --- PERINTAH-PERINTAH GENERATOR ---
 
