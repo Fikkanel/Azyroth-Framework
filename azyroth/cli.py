@@ -90,23 +90,23 @@ def _start_flask_server(host, port):
         click.echo(f"An error occurred while starting the server: {e}", err=True)
 
 def _start_ssh_tunnel(port):
-    """Fungsi untuk menjalankan tunnel Serveo.net."""
-    click.echo("Starting SSH tunnel with Serveo.net...")
+    """Fungsi untuk menjalankan tunnel localhost.run."""
+    click.echo("Starting SSH tunnel with localhost.run...")
     try:
-        # --- PERUBAHAN DI SINI ---
-        command = ["ssh", "-R", f"80:localhost:{port}", "serveo.net"]
+        # --- PERUBAHAN UTAMA DI SINI ---
+        command = ["ssh", "-R", f"80:localhost:{port}", "localhost.run"]
         tunnel_process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.PIPE, # <-- DIUBAH: Baca dari stderr
             text=True
         )
         
-        # Pola regex untuk mencari URL publik yang valid dari Serveo.net
-        url_pattern = re.compile(r"(https?://\S+\.serveo\.net)")
+        # Pola regex untuk mencari URL dari localhost.run
+        url_pattern = re.compile(r"(https?://\S+\.localhost\.run)")
 
-        # Baca output dari stdout (Serveo.net mengirim URL ke stdout)
-        for line in iter(tunnel_process.stdout.readline, ''):
+        # Baca output dari stderr (localhost.run mengirim URL ke stderr)
+        for line in iter(tunnel_process.stderr.readline, ''):
             match = url_pattern.search(line)
             if match:
                 public_url = match.group(1)
@@ -127,7 +127,7 @@ def _start_ssh_tunnel(port):
 @main_cli.command()
 @click.option('--host', default='0.0.0.0', help='The interface to bind to.')
 @click.option('--port', default=5000, help='The port to bind to.')
-@click.option('--public', is_flag=True, help='Expose the server to the internet using Serveo.net.')
+@click.option('--public', is_flag=True, help='Expose the server to the internet using localhost.run.')
 def serve(host, port, public):
     """Runs the Azyroth development server."""
     if not public:
@@ -153,6 +153,7 @@ def serve(host, port, public):
         if tunnel_process.is_alive():
             tunnel_process.terminate()
         click.echo("Servers stopped.")
+
 
 # --- PERINTAH-PERINTAH GENERATOR ---
 
