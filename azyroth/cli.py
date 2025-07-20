@@ -101,20 +101,16 @@ def _start_ssh_tunnel(port):
             text=True
         )
         
-        # Pola regex untuk mencari URL publik yang valid
         url_pattern = re.compile(r"(https?://\S+\.localhost\.run)")
 
-        # Baca output dari stderr (localhost.run mengirim URL ke stderr)
         for line in iter(tunnel_process.stderr.readline, ''):
             match = url_pattern.search(line)
             if match:
                 public_url = match.group(1)
                 click.echo("✅ SSH tunnel established.")
                 click.echo(f"   Public URL: {public_url}")
-                # Hentikan pencarian setelah URL ditemukan
                 break 
         
-        # Biarkan proses berjalan
         tunnel_process.wait()
 
     except FileNotFoundError:
@@ -134,8 +130,6 @@ def serve(host, port, public):
         click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
         _start_flask_server(host, port)
         return
-
-    # --- Logika untuk --public menggunakan multiprocessing ---
     
     flask_process = multiprocessing.Process(target=_start_flask_server, args=(host, port))
     tunnel_process = multiprocessing.Process(target=_start_ssh_tunnel, args=(port,))
@@ -143,7 +137,7 @@ def serve(host, port, public):
     try:
         click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
         flask_process.start()
-        time.sleep(2) # Beri waktu agar server flask siap
+        time.sleep(2)
         tunnel_process.start()
         flask_process.join()
         tunnel_process.join()
@@ -193,7 +187,6 @@ class {class_name}(Base):
         return f"<{class_name}(id={{self.id}})>"
 """
     _create_from_template("Model", ['app', 'Models', file_name], template)
-
 
 # --- GRUP PERINTAH DATABASE ---
 @main_cli.group()
