@@ -90,10 +90,11 @@ def _start_flask_server(host, port):
         click.echo(f"An error occurred while starting the server: {e}", err=True)
 
 def _start_ssh_tunnel(port):
-    """Fungsi untuk menjalankan tunnel localhost.run."""
-    click.echo("Starting SSH tunnel with localhost.run...")
+    """Fungsi untuk menjalankan tunnel Serveo.net."""
+    click.echo("Starting SSH tunnel with Serveo.net...")
     try:
-        command = ["ssh", "-R", f"80:localhost:{port}", "localhost.run"]
+        # --- PERUBAHAN DI SINI ---
+        command = ["ssh", "-R", f"80:localhost:{port}", "serveo.net"]
         tunnel_process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
@@ -101,20 +102,23 @@ def _start_ssh_tunnel(port):
             text=True
         )
         
-        url_pattern = re.compile(r"(https?://\S+\.localhost\.run)")
+        # Pola regex untuk mencari URL publik yang valid dari Serveo.net
+        url_pattern = re.compile(r"(https?://\S+\.serveo\.net)")
 
-        for line in iter(tunnel_process.stderr.readline, ''):
+        # Baca output dari stdout (Serveo.net mengirim URL ke stdout)
+        for line in iter(tunnel_process.stdout.readline, ''):
             match = url_pattern.search(line)
             if match:
                 public_url = match.group(1)
                 click.echo("✅ SSH tunnel established.")
                 click.echo(f"   Public URL: {public_url}")
+                # Hentikan pencarian setelah URL ditemukan
                 break 
         
         tunnel_process.wait()
 
     except FileNotFoundError:
-        click.echo("Error: 'ssh' command not found. Please install an SSH client (e.g., 'pkg install openssh').", err=True)
+        click.echo("Error: 'ssh' command not found. Please install an SSH client.", err=True)
     except Exception as e:
         click.echo(f"An error occurred with the SSH tunnel: {e}", err=True)
 
@@ -123,7 +127,7 @@ def _start_ssh_tunnel(port):
 @main_cli.command()
 @click.option('--host', default='0.0.0.0', help='The interface to bind to.')
 @click.option('--port', default=5000, help='The port to bind to.')
-@click.option('--public', is_flag=True, help='Expose the server to the internet using localhost.run.')
+@click.option('--public', is_flag=True, help='Expose the server to the internet using Serveo.net.')
 def serve(host, port, public):
     """Runs the Azyroth development server."""
     if not public:
@@ -187,6 +191,7 @@ class {class_name}(Base):
         return f"<{class_name}(id={{self.id}})>"
 """
     _create_from_template("Model", ['app', 'Models', file_name], template)
+
 
 # --- GRUP PERINTAH DATABASE ---
 @main_cli.group()
