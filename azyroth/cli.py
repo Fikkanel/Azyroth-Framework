@@ -93,16 +93,14 @@ def _start_ssh_tunnel(port):
     """Fungsi untuk menjalankan tunnel localhost.run."""
     click.echo("Starting SSH tunnel with localhost.run...")
     try:
-        # --- PERUBAHAN UTAMA DI SINI ---
         command = ["ssh", "-R", f"80:localhost:{port}", "localhost.run"]
         tunnel_process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, # <-- DIUBAH: Baca dari stderr
+            stderr=subprocess.PIPE,
             text=True
         )
         
-        # Pola regex untuk mencari URL dari localhost.run
         url_pattern = re.compile(r"(https?://\S+\.localhost\.run)")
 
         # Baca output dari stderr (localhost.run mengirim URL ke stderr)
@@ -110,10 +108,11 @@ def _start_ssh_tunnel(port):
             match = url_pattern.search(line)
             if match:
                 public_url = match.group(1)
-                click.echo("✅ SSH tunnel established.")
-                click.echo(f"   Public URL: {public_url}")
-                # Hentikan pencarian setelah URL ditemukan
-                break 
+                # Abaikan URL admin dan hanya ambil URL tunnel yang valid
+                if "admin.localhost.run" not in public_url:
+                    click.echo("✅ SSH tunnel established.")
+                    click.echo(f"   Public URL: {public_url}")
+                    break # Hentikan setelah URL yang benar ditemukan
         
         tunnel_process.wait()
 
