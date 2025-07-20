@@ -117,7 +117,7 @@ def _start_ssh_tunnel(port):
 # --- PERINTAH SERVE ---
 
 @main_cli.command()
-@click.option('--host', default='127.0.0.1', help='The interface to bind to.')
+@click.option('--host', default='0.0.0.0', help='The interface to bind to.')
 @click.option('--port', default=5000, help='The port to bind to.')
 @click.option('--public', is_flag=True, help='Expose the server to the internet using localhost.run.')
 def serve(host, port, public):
