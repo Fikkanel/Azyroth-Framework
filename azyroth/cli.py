@@ -7,6 +7,7 @@ import inspect
 import multiprocessing
 import time
 import sys
+import re
 
 # --- FUNGSI UTAMA DAN GRUP CLI ---
 
@@ -100,14 +101,21 @@ def _start_ssh_tunnel(port):
             text=True
         )
         
+        # Pola regex untuk mencari URL publik yang valid
+        url_pattern = re.compile(r"(https?://\S+\.localhost\.run)")
+
         # Baca output dari stderr (localhost.run mengirim URL ke stderr)
         for line in iter(tunnel_process.stderr.readline, ''):
-            if "https" in line and "localhost.run" in line:
-                public_url = line.strip()
+            match = url_pattern.search(line)
+            if match:
+                public_url = match.group(1)
                 click.echo("✅ SSH tunnel established.")
                 click.echo(f"   Public URL: {public_url}")
-            if tunnel_process.poll() is not None:
-                break
+                # Hentikan pencarian setelah URL ditemukan
+                break 
+        
+        # Biarkan proses berjalan
+        tunnel_process.wait()
 
     except FileNotFoundError:
         click.echo("Error: 'ssh' command not found. Please install an SSH client (e.g., 'pkg install openssh').", err=True)
@@ -117,7 +125,7 @@ def _start_ssh_tunnel(port):
 # --- PERINTAH SERVE ---
 
 @main_cli.command()
-@click.option('--host', default='0.0.0.0', help='The interface to bind to.')
+@click.option('--host', default='127.0.0.1', help='The interface to bind to.')
 @click.option('--port', default=5000, help='The port to bind to.')
 @click.option('--public', is_flag=True, help='Expose the server to the internet using localhost.run.')
 def serve(host, port, public):
