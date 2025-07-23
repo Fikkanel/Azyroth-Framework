@@ -8,6 +8,7 @@ class AdminController:
         self.resource = resource_class
         self.model = resource_class.model
         self.resource_name = self.model.__tablename__
+        self.endpoint_prefix = f'admin.{self.resource_name}'
 
     def index(self):
         """Menampilkan halaman daftar (list) untuk sebuah resource."""
@@ -16,6 +17,7 @@ class AdminController:
             'admin/list.html', 
             items=items,
             resource_name=self.resource_name,
+            endpoint_prefix=self.endpoint_prefix,
             list_display=self.resource.list_display,
             page_title=f"Daftar {self.resource_name.capitalize()}"
         )
@@ -26,7 +28,9 @@ class AdminController:
             'admin/form.html',
             form_schema=self.resource.form_schema,
             resource_name=self.resource_name,
-            page_title=f"Buat {self.resource_name.capitalize()} Baru"
+            endpoint_prefix=self.endpoint_prefix,
+            page_title=f"Buat {self.resource_name.capitalize()} Baru",
+            item=None
         )
     
     def store(self):
@@ -37,7 +41,7 @@ class AdminController:
         
         g.db_session.add(item)
         g.db_session.commit()
-        return redirect(url_for(f'admin.{self.resource_name}.index'))
+        return redirect(url_for(f'{self.endpoint_prefix}.index'))
 
     def edit(self, id):
         """Menampilkan form untuk mengedit item yang ada."""
@@ -50,6 +54,7 @@ class AdminController:
             form_schema=self.resource.form_schema,
             item=item,
             resource_name=self.resource_name,
+            endpoint_prefix=self.endpoint_prefix,
             page_title=f"Edit {self.resource_name.capitalize()}"
         )
 
@@ -63,7 +68,7 @@ class AdminController:
             setattr(item, field['name'], request.form.get(field['name']))
             
         g.db_session.commit()
-        return redirect(url_for(f'admin.{self.resource_name}.index'))
+        return redirect(url_for(f'{self.endpoint_prefix}.index'))
 
     def destroy(self, id):
         """Menghapus item dari database."""
@@ -71,4 +76,4 @@ class AdminController:
         if item:
             g.db_session.delete(item)
             g.db_session.commit()
-        return redirect(url_for(f'admin.{self.resource_name}.index'))
+        return redirect(url_for(f'{self.endpoint_prefix}.index'))
