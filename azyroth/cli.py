@@ -19,11 +19,13 @@ def main_cli():
 # --- FUNGSI HELPER ---
 
 def _create_from_template(name, template_path_parts, template_content):
-    """Fungsi helper untuk membuat file dari template."""
+    """Fungsi helper untuk membuat file dari template (misal: controller, model)."""
     file_path = os.path.join(os.getcwd(), *template_path_parts)
+    
     if os.path.exists(file_path):
         click.echo(f"Error: File '{os.path.basename(file_path)}' already exists.", err=True)
         return
+    
     try:
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, 'w') as f:
@@ -47,6 +49,7 @@ def new(project_name):
 
     try:
         shutil.copytree(source_dir, dest_dir)
+        
         env_example_path = os.path.join(dest_dir, '.env.example')
         env_path = os.path.join(dest_dir, '.env')
         if os.path.exists(env_example_path):
@@ -63,6 +66,7 @@ def new(project_name):
         click.echo(f"\n🎉 Project '{project_name}' created successfully!")
         click.echo(f"   Navigate to your project: cd {project_name}")
         click.echo("   Next steps: setup .env, create database, and run 'azyroth db migrate'.")
+
     except Exception as e:
         click.echo(f"Error creating project: {e}", err=True)
 
@@ -89,7 +93,12 @@ def _start_ssh_tunnel(port):
     click.echo("🌐 Starting SSH tunnel with localhost.run...")
     try:
         command = ["ssh", "-o", "ServerAliveInterval=60", "-o", "ServerAliveCountMax=3", "-R", f"80:localhost:{port}", "localhost.run"]
-        tunnel_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        tunnel_process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
         
         url_pattern = re.compile(r"(https?://\S+\.localhost\.run)")
         url_found = False
@@ -131,7 +140,7 @@ def _start_ngrok_tunnel(port):
         click.echo(f"   Public URL: {public_url}")
         return public_url
     except FileNotFoundError:
-         click.echo("Error: Ngrok executable not found. Please install Ngrok.", err=True)
+         click.echo("Error: Ngrok executable not found. Please install Ngrok and set up authtoken.", err=True)
     except Exception as e:
         click.echo(f"An error occurred with Ngrok: {e}", err=True)
     return None
@@ -155,13 +164,15 @@ def serve(host, port, public_linux, public_termux):
             public_url = _start_ngrok_tunnel(port)
             if public_url:
                 click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
-                _start_flask_server(host, port, use_reloader=True)
+                # Menonaktifkan reloader untuk mencegah Ngrok membuat sesi kedua
+                _start_flask_server(host, port, use_reloader=False)
         except ImportError:
             click.echo("Error: 'pyngrok' is not installed. Please add it to pyproject.toml.", err=True)
         except KeyboardInterrupt:
             click.echo("\nStopping server...")
         finally:
             if public_url:
+                from pyngrok import ngrok
                 ngrok.disconnect(public_url.public_url)
                 ngrok.kill()
                 click.echo("Ngrok tunnel closed.")
@@ -189,7 +200,7 @@ def serve(host, port, public_linux, public_termux):
             click.echo("🛑 Servers stopped.")
             
     else:
-        # Jalankan server lokal biasa
+        # Jalankan server lokal biasa dengan reloader aktif
         click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
         _start_flask_server(host, port, use_reloader=True)
 
