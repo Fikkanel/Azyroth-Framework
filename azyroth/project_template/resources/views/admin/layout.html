@@ -28,7 +28,7 @@
         <hr>
         <h4>Resources</h4>
         {% for resource in admin_resources %}
-            <a href="{{ url_for('admin.' + resource.name + '.index') }}">{{ resource.name.capitalize() }}</a>
+            <a href="{{ url_for('admin.' + resource.name + '_index') }}">{{ resource.name.capitalize() }}</a>
         {% endfor %}
         <a href="{{ url_for('admin_logout') }}" class="logout">Logout</a>
     </aside>
