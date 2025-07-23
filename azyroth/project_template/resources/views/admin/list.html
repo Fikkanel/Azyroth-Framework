@@ -1,0 +1,30 @@
+{% extends 'admin/layout.html' %}
+{% block content %}
+    <h2>{{ page_title }}</h2>
+    <a href="{{ url_for(endpoint_prefix + '.create') }}">Buat Baru</a>
+    <table border="1" style="width:100%; margin-top: 1rem;">
+        <thead>
+            <tr>
+                {% for col in list_display %}
+                    <th>{{ col.replace('_', ' ').title() }}</th>
+                {% endfor %}
+                <th>Aksi</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                {% for col in list_display %}
+                    <td>{{ item[col] }}</td>
+                {% endfor %}
+                <td>
+                    <a href="{{ url_for(endpoint_prefix + '.edit', id=item.id) }}">Edit</a>
+                    <form action="{{ url_for(endpoint_prefix + '.destroy', id=item.id) }}" method="post" style="display:inline;">
+                        <button type="submit" onclick="return confirm('Anda yakin?')">Hapus</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}
