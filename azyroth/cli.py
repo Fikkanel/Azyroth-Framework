@@ -4,6 +4,8 @@ import subprocess
 import click
 import importlib
 import inspect
+import multiprocessing
+import time
 import sys
 import re
 
@@ -142,7 +144,8 @@ def serve(host, port, public_linux, public_termux):
         click.echo("="*70 + "\n")
         
         click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
-        _start_flask_server(host, port, use_reloader=True)
+        # Nonaktifkan reloader untuk mencegah loop
+        _start_flask_server(host, port, use_reloader=False)
             
     else:
         # Jalankan server lokal biasa dengan reloader aktif
