@@ -69,7 +69,7 @@ def create_app():
 
     # Temukan semua file Resource
     discovered_resources = []
-    resources_path = os.path.join(app.root_path, 'app', 'Admin', 'Resources')
+    resources_path = os.path.join(app.root_path, 'Admin', 'Resources')
     if os.path.exists(resources_path):
         for filename in os.listdir(resources_path):
             if filename.endswith('.py') and not filename.startswith('__'):
