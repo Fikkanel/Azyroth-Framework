@@ -1,0 +1,18 @@
+{% extends 'admin/layout.html' %}
+{% block content %}
+    <h2>{{ page_title }}</h2>
+    <form method="post">
+        {% for field in form_schema %}
+        <div>
+            <label for="{{ field.name }}">{{ field.label }}:</label><br>
+            {% if field.type == 'textarea' %}
+                <textarea name="{{ field.name }}" id="{{ field.name }}" rows="5">{{ item[field.name] if item else '' }}</textarea>
+            {% else %}
+                <input type="{{ field.type }}" name="{{ field.name }}" id="{{ field.name }}" value="{{ item[field.name] if item else '' }}">
+            {% endif %}
+        </div>
+        <br>
+        {% endfor %}
+        <button type="submit">Simpan</button>
+    </form>
+{% endblock %}
