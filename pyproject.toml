@@ -23,6 +23,7 @@ dependencies = [
     "Click",
     "alembic",
     "pymysql",
+    "pyngrok",
 ]
 
 # Membuat perintah `azyroth` di terminal
