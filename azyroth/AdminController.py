@@ -1,4 +1,5 @@
-from flask import render_template, request, redirect, url_for, g, abort
+from flask import render_template, request, redirect, url_for, g, abort, flash
+from sqlalchemy import or_
 
 class AdminController:
     """
@@ -11,11 +12,28 @@ class AdminController:
         self.endpoint_prefix = f'admin.{self.resource_name}'
 
     def index(self):
-        """Menampilkan halaman daftar (list) untuk sebuah resource."""
-        items = g.db_session.query(self.model).all()
+        """Menampilkan halaman daftar dengan pencarian dan paginasi."""
+        page = request.args.get('page', 1, type=int)
+        search_query = request.args.get('q', '')
+        
+        query = g.db_session.query(self.model)
+
+        if search_query and hasattr(self.resource, 'searchable_columns'):
+            search_filters = []
+            for col_name in self.resource.searchable_columns:
+                column = getattr(self.model, col_name, None)
+                if column:
+                    search_filters.append(column.like(f"%{search_query}%"))
+            if search_filters:
+                query = query.filter(or_(*search_filters))
+
+        pagination = query.paginate(page=page, per_page=10, error_out=False)
+        items = pagination.items
+
         return render_template(
             'admin/list.html', 
             items=items,
+            pagination=pagination,
             resource_name=self.resource_name,
             endpoint_prefix=self.endpoint_prefix,
             list_display=self.resource.list_display,
@@ -24,14 +42,8 @@ class AdminController:
 
     def create(self):
         """Menampilkan form untuk membuat item baru."""
-        return render_template(
-            'admin/form.html',
-            form_schema=self.resource.form_schema,
-            resource_name=self.resource_name,
-            endpoint_prefix=self.endpoint_prefix,
-            page_title=f"Buat {self.resource_name.capitalize()} Baru",
-            item=None
-        )
+        # ... (kode ini tetap sama)
+        return render_template('admin/form.html', form_schema=self.resource.form_schema, item=None, page_title=f"Buat {self.resource_name.capitalize()} Baru", endpoint_prefix=self.endpoint_prefix)
     
     def store(self):
         """Menyimpan item baru ke database."""
@@ -41,33 +53,26 @@ class AdminController:
         
         g.db_session.add(item)
         g.db_session.commit()
+        flash(f'{self.model.__name__} berhasil dibuat!', 'success')
         return redirect(url_for(f'{self.endpoint_prefix}_index'))
 
     def edit(self, id):
         """Menampilkan form untuk mengedit item yang ada."""
+        # ... (kode ini tetap sama)
         item = g.db_session.query(self.model).get(id)
-        if not item:
-            abort(404)
-            
-        return render_template(
-            'admin/form.html',
-            form_schema=self.resource.form_schema,
-            item=item,
-            resource_name=self.resource_name,
-            endpoint_prefix=self.endpoint_prefix,
-            page_title=f"Edit {self.resource_name.capitalize()}"
-        )
+        if not item: abort(404)
+        return render_template('admin/form.html', form_schema=self.resource.form_schema, item=item, page_title=f"Edit {self.resource_name.capitalize()}", endpoint_prefix=self.endpoint_prefix)
 
     def update(self, id):
         """Memperbarui item yang ada di database."""
         item = g.db_session.query(self.model).get(id)
-        if not item:
-            abort(404)
-            
+        if not item: abort(404)
+        
         for field in self.resource.form_schema:
             setattr(item, field['name'], request.form.get(field['name']))
             
         g.db_session.commit()
+        flash(f'{self.model.__name__} berhasil diperbarui!', 'success')
         return redirect(url_for(f'{self.endpoint_prefix}_index'))
 
     def destroy(self, id):
@@ -76,4 +81,5 @@ class AdminController:
         if item:
             g.db_session.delete(item)
             g.db_session.commit()
+            flash(f'{self.model.__name__} berhasil dihapus!', 'warning')
         return redirect(url_for(f'{self.endpoint_prefix}_index'))
