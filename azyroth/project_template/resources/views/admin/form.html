@@ -6,9 +6,15 @@
         <div>
             <label for="{{ field.name }}">{{ field.label }}:</label><br>
             {% if field.type == 'textarea' %}
-                <textarea name="{{ field.name }}" id="{{ field.name }}" rows="5">{{ item[field.name] if item else '' }}</textarea>
+                <textarea name="{{ field.name }}">{{ item[field.name] if item else '' }}</textarea>
+            {% elif field.type == 'select' %}
+                <select name="{{ field.name }}">
+                    {% for option in field.options %}
+                        <option value="{{ option }}" {% if item and item[field.name] == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
             {% else %}
-                <input type="{{ field.type }}" name="{{ field.name }}" id="{{ field.name }}" value="{{ item[field.name] if item else '' }}">
+                <input type="{{ field.type }}" name="{{ field.name }}" value="{{ item[field.name] if item else '' }}">
             {% endif %}
         </div>
         <br>
