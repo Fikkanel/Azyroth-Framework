@@ -19,13 +19,11 @@ def main_cli():
 # --- FUNGSI HELPER ---
 
 def _create_from_template(name, template_path_parts, template_content):
-    """Fungsi helper untuk membuat file dari template (misal: controller, model)."""
+    """Fungsi helper untuk membuat file dari template."""
     file_path = os.path.join(os.getcwd(), *template_path_parts)
-    
     if os.path.exists(file_path):
         click.echo(f"Error: File '{os.path.basename(file_path)}' already exists.", err=True)
         return
-    
     try:
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, 'w') as f:
@@ -49,7 +47,6 @@ def new(project_name):
 
     try:
         shutil.copytree(source_dir, dest_dir)
-        
         env_example_path = os.path.join(dest_dir, '.env.example')
         env_path = os.path.join(dest_dir, '.env')
         if os.path.exists(env_example_path):
@@ -88,6 +85,41 @@ def _start_flask_server(host, port, use_reloader=True):
     except Exception as e:
         click.echo(f"An error occurred while starting the server: {e}", err=True)
 
+def _start_ssh_tunnel(port):
+    """Fungsi untuk menjalankan tunnel localhost.run."""
+    click.echo("🌐 Starting SSH tunnel with localhost.run...")
+    try:
+        command = ["ssh", "-o", "ServerAliveInterval=60", "-o", "ServerAliveCountMax=3", "-R", f"80:localhost:{port}", "localhost.run"]
+        tunnel_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        url_pattern = re.compile(r"(https?://\S+\.localhost\.run)")
+        url_found = False
+        
+        start_time = time.time()
+        while time.time() - start_time < 20: # Timeout 20 detik
+            line = tunnel_process.stderr.readline()
+            if not line and tunnel_process.poll() is not None: break
+            
+            match = url_pattern.search(line)
+            if match:
+                public_url = match.group(1)
+                if "admin.localhost.run" not in public_url:
+                    click.echo("✅ SSH tunnel established.")
+                    click.echo(f"   Public URL: {public_url}")
+                    url_found = True
+                    break
+        
+        if not url_found:
+            click.echo("❌ Error: Could not retrieve public URL. Please try again.", err=True)
+            tunnel_process.terminate()
+            return
+            
+        tunnel_process.wait()
+    except FileNotFoundError:
+        click.echo("Error: 'ssh' command not found. Please install an SSH client.", err=True)
+    except Exception as e:
+        click.echo(f"An error occurred with the SSH tunnel: {e}", err=True)
+
 def _start_ngrok_tunnel(port):
     """Fungsi untuk menjalankan Ngrok."""
     click.echo("Starting Ngrok tunnel...")
@@ -103,18 +135,16 @@ def _start_ngrok_tunnel(port):
         click.echo(f"An error occurred with Ngrok: {e}", err=True)
     return None
 
-# --- PERINTAH SERVE DENGAN LOGIKA BARU ---
+# --- PERINTAH SERVE ---
 
 @main_cli.command()
 @click.option('--host', default='0.0.0.0', help='The interface to bind to.')
 @click.option('--port', default=5000, help='The port to bind to.')
 @click.option('--public-linux', is_flag=True, help='Expose server via Ngrok (for standard Linux).')
-@click.option('--public-termux', is_flag=True, help='Shows instructions to expose server via SSH (for Termux).')
+@click.option('--public-termux', is_flag=True, help='Expose server via localhost.run (for Termux).')
 def serve(host, port, public_linux, public_termux):
     """Runs the Azyroth development server."""
-
     if public_linux:
-        # Gunakan Ngrok untuk Linux biasa
         click.echo("Linux mode: Using Ngrok...")
         public_url = None
         try:
@@ -124,7 +154,7 @@ def serve(host, port, public_linux, public_termux):
                 click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
                 _start_flask_server(host, port, use_reloader=False)
         except ImportError:
-            click.echo("Error: 'pyngrok' is not installed. Please add it to pyproject.toml.", err=True)
+            click.echo("Error: 'pyngrok' is not installed.", err=True)
         except KeyboardInterrupt:
             click.echo("\nStopping server...")
         finally:
@@ -137,18 +167,27 @@ def serve(host, port, public_linux, public_termux):
                     click.echo("Ngrok process already terminated. Tunnel closed.")
     
     elif public_termux:
-        # Hanya jalankan server dan tampilkan instruksi
-        click.echo("\n" + "="*70)
-        click.echo("Untuk domain public, silahkan buka NEW SESSION Termux lalu jalankan command:")
-        click.echo(f"   ssh -R 80:localhost:{port} localhost.run")
-        click.echo("="*70 + "\n")
-        
-        click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
-        # Nonaktifkan reloader untuk mencegah loop
-        _start_flask_server(host, port, use_reloader=False)
+        click.echo("Termux mode: Using localhost.run...")
+        flask_process = multiprocessing.Process(target=_start_flask_server, args=(host, port, False))
+        tunnel_process = multiprocessing.Process(target=_start_ssh_tunnel, args=(port,))
+        processes = [flask_process, tunnel_process]
+        try:
+            click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
+            flask_process.start()
+            time.sleep(2)
+            tunnel_process.start()
+            while any(p.is_alive() for p in processes):
+                time.sleep(1)
+        except KeyboardInterrupt:
+            click.echo("\n⏹️  Stopping servers...")
+        finally:
+            for p in processes:
+                if p.is_alive():
+                    p.terminate(); p.join(timeout=2)
+                    if p.is_alive(): p.kill()
+            click.echo("🛑 Servers stopped.")
             
     else:
-        # Jalankan server lokal biasa dengan reloader aktif
         click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
         _start_flask_server(host, port, use_reloader=True)
 
@@ -189,6 +228,35 @@ class {class_name}(Base):
         return f"<{class_name}(id={{self.id}})>"
 """
     _create_from_template("Model", ['app', 'Models', file_name], template)
+
+# --- PERINTAH BARU: MAKE:RESOURCE ---
+@main_cli.command("make:resource")
+@click.argument('name')
+def make_resource(name):
+    """Creates a new Admin Resource file."""
+    class_name = f"{name.capitalize()}Resource"
+    file_name = f"{class_name}.py"
+    model_name = name.capitalize()
+
+    template = f"""from app.Models.{model_name} import {model_name}
+
+class {class_name}:
+    # Model yang terhubung dengan resource ini
+    model = {model_name}
+
+    # Atribut yang akan ditampilkan di halaman daftar (tabel)
+    # Ganti sesuai field model Anda
+    list_display = ['id', 'name', 'email'] 
+
+    # Skema untuk form create dan edit
+    # Ganti sesuai field model Anda
+    form_schema = [
+        {{'name': 'name', 'type': 'text', 'label': 'Full Name'}},
+        {{'name': 'email', 'type': 'email', 'label': 'Email Address'}},
+        {{'name': 'password', 'type': 'password', 'label': 'Password'}},
+    ]
+"""
+    _create_from_template("Resource", ['app', 'Admin', 'Resources', file_name], template)
 
 
 # --- GRUP PERINTAH DATABASE ---
