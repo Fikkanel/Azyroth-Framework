@@ -160,11 +160,10 @@ def serve(host, port, public_linux, public_termux):
         click.echo("Linux mode: Using Ngrok...")
         public_url = None
         try:
-            from pyngrok import ngrok
+            from pyngrok import ngrok, exception
             public_url = _start_ngrok_tunnel(port)
             if public_url:
                 click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
-                # Menonaktifkan reloader untuk mencegah Ngrok membuat sesi kedua
                 _start_flask_server(host, port, use_reloader=False)
         except ImportError:
             click.echo("Error: 'pyngrok' is not installed. Please add it to pyproject.toml.", err=True)
@@ -172,10 +171,12 @@ def serve(host, port, public_linux, public_termux):
             click.echo("\nStopping server...")
         finally:
             if public_url:
-                from pyngrok import ngrok
-                ngrok.disconnect(public_url.public_url)
-                ngrok.kill()
-                click.echo("Ngrok tunnel closed.")
+                try:
+                    ngrok.disconnect(public_url.public_url)
+                    ngrok.kill()
+                    click.echo("Ngrok tunnel closed.")
+                except exception.PyngrokNgrokURLError:
+                    click.echo("Ngrok process already terminated. Tunnel closed.")
     
     elif public_termux:
         # Gunakan localhost.run untuk Termux
@@ -241,6 +242,7 @@ class {class_name}(Base):
         return f"<{class_name}(id={{self.id}})>"
 """
     _create_from_template("Model", ['app', 'Models', file_name], template)
+
 
 # --- GRUP PERINTAH DATABASE ---
 @main_cli.group()
