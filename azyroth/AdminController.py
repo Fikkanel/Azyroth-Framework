@@ -41,7 +41,7 @@ class AdminController:
         
         g.db_session.add(item)
         g.db_session.commit()
-        return redirect(url_for(f'{self.endpoint_prefix}.index'))
+        return redirect(url_for(f'{self.endpoint_prefix}_index'))
 
     def edit(self, id):
         """Menampilkan form untuk mengedit item yang ada."""
@@ -68,7 +68,7 @@ class AdminController:
             setattr(item, field['name'], request.form.get(field['name']))
             
         g.db_session.commit()
-        return redirect(url_for(f'{self.endpoint_prefix}.index'))
+        return redirect(url_for(f'{self.endpoint_prefix}_index'))
 
     def destroy(self, id):
         """Menghapus item dari database."""
@@ -76,4 +76,4 @@ class AdminController:
         if item:
             g.db_session.delete(item)
             g.db_session.commit()
-        return redirect(url_for(f'{self.endpoint_prefix}.index'))
+        return redirect(url_for(f'{self.endpoint_prefix}_index'))
