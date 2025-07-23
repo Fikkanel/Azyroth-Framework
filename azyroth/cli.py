@@ -19,13 +19,11 @@ def main_cli():
 # --- FUNGSI HELPER ---
 
 def _create_from_template(name, template_path_parts, template_content):
-    """Fungsi helper untuk membuat file dari template (misal: controller, model)."""
+    """Fungsi helper untuk membuat file dari template."""
     file_path = os.path.join(os.getcwd(), *template_path_parts)
-    
     if os.path.exists(file_path):
         click.echo(f"Error: File '{os.path.basename(file_path)}' already exists.", err=True)
         return
-    
     try:
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, 'w') as f:
@@ -49,7 +47,6 @@ def new(project_name):
 
     try:
         shutil.copytree(source_dir, dest_dir)
-        
         env_example_path = os.path.join(dest_dir, '.env.example')
         env_path = os.path.join(dest_dir, '.env')
         if os.path.exists(env_example_path):
@@ -66,7 +63,6 @@ def new(project_name):
         click.echo(f"\n🎉 Project '{project_name}' created successfully!")
         click.echo(f"   Navigate to your project: cd {project_name}")
         click.echo("   Next steps: setup .env, create database, and run 'azyroth db migrate'.")
-
     except Exception as e:
         click.echo(f"Error creating project: {e}", err=True)
 
@@ -89,22 +85,11 @@ def _start_flask_server(host, port, use_reloader=True):
         click.echo(f"An error occurred while starting the server: {e}", err=True)
 
 def _start_ssh_tunnel(port):
-    """Fungsi untuk menjalankan tunnel localhost.run dengan error handling yang lebih baik."""
+    """Fungsi untuk menjalankan tunnel localhost.run."""
     click.echo("🌐 Starting SSH tunnel with localhost.run...")
     try:
-        command = [
-            "ssh", 
-            "-o", "ServerAliveInterval=60", 
-            "-o", "ServerAliveCountMax=3",
-            "-R", f"80:localhost:{port}", 
-            "localhost.run"
-        ]
-        tunnel_process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
+        command = ["ssh", "-o", "ServerAliveInterval=60", "-o", "ServerAliveCountMax=3", "-R", f"80:localhost:{port}", "localhost.run"]
+        tunnel_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         
         url_pattern = re.compile(r"(https?://\S+\.localhost\.run)")
         url_found = False
@@ -125,7 +110,7 @@ def _start_ssh_tunnel(port):
                     break
         
         if not url_found:
-            click.echo("❌ Error: Could not retrieve public URL from localhost.run. Please try again.", err=True)
+            click.echo("❌ Error: Could not retrieve public URL. Please try again.", err=True)
             tunnel_process.terminate()
             return
             
@@ -136,47 +121,77 @@ def _start_ssh_tunnel(port):
     except Exception as e:
         click.echo(f"An error occurred with the SSH tunnel: {e}", err=True)
 
+def _start_ngrok_tunnel(port):
+    """Fungsi untuk menjalankan Ngrok."""
+    click.echo("Starting Ngrok tunnel...")
+    try:
+        from pyngrok import ngrok
+        public_url = ngrok.connect(port, "http")
+        click.echo("✅ Ngrok tunnel established.")
+        click.echo(f"   Public URL: {public_url}")
+        return public_url
+    except FileNotFoundError:
+         click.echo("Error: Ngrok executable not found. Please install Ngrok.", err=True)
+    except Exception as e:
+        click.echo(f"An error occurred with Ngrok: {e}", err=True)
+    return None
 
-# --- PERINTAH SERVE ---
+# --- PERINTAH SERVE DENGAN FLAG TERPISAH ---
 
 @main_cli.command()
 @click.option('--host', default='0.0.0.0', help='The interface to bind to.')
 @click.option('--port', default=5000, help='The port to bind to.')
-@click.option('--public', is_flag=True, help='Expose the server to the internet using localhost.run.')
-def serve(host, port, public):
+@click.option('--public-linux', is_flag=True, help='Expose server via Ngrok (for standard Linux).')
+@click.option('--public-termux', is_flag=True, help='Expose server via localhost.run (for Termux).')
+def serve(host, port, public_linux, public_termux):
     """Runs the Azyroth development server."""
-    if not public:
+
+    if public_linux:
+        # Gunakan Ngrok untuk Linux biasa
+        click.echo("Linux mode: Using Ngrok...")
+        public_url = None
+        try:
+            from pyngrok import ngrok
+            public_url = _start_ngrok_tunnel(port)
+            if public_url:
+                click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
+                _start_flask_server(host, port, use_reloader=True)
+        except ImportError:
+            click.echo("Error: 'pyngrok' is not installed. Please add it to pyproject.toml.", err=True)
+        except KeyboardInterrupt:
+            click.echo("\nStopping server...")
+        finally:
+            if public_url:
+                ngrok.disconnect(public_url.public_url)
+                ngrok.kill()
+                click.echo("Ngrok tunnel closed.")
+    
+    elif public_termux:
+        # Gunakan localhost.run untuk Termux
+        click.echo("Termux mode: Using localhost.run...")
+        flask_process = multiprocessing.Process(target=_start_flask_server, args=(host, port, False))
+        tunnel_process = multiprocessing.Process(target=_start_ssh_tunnel, args=(port,))
+        processes = [flask_process, tunnel_process]
+        try:
+            click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
+            flask_process.start()
+            time.sleep(2)
+            tunnel_process.start()
+            while any(p.is_alive() for p in processes):
+                time.sleep(1)
+        except KeyboardInterrupt:
+            click.echo("\n⏹️  Stopping servers...")
+        finally:
+            for p in processes:
+                if p.is_alive():
+                    p.terminate(); p.join(timeout=2)
+                    if p.is_alive(): p.kill()
+            click.echo("🛑 Servers stopped.")
+            
+    else:
+        # Jalankan server lokal biasa
         click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
         _start_flask_server(host, port, use_reloader=True)
-        return
-    
-    # --- Logika untuk --public menggunakan multiprocessing ---
-    flask_process = multiprocessing.Process(target=_start_flask_server, args=(host, port, False))
-    tunnel_process = multiprocessing.Process(target=_start_ssh_tunnel, args=(port,))
-
-    processes = [flask_process, tunnel_process]
-    
-    try:
-        click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
-        flask_process.start()
-        time.sleep(2)
-        tunnel_process.start()
-        
-        # Loop utama untuk menjaga skrip tetap berjalan
-        while any(p.is_alive() for p in processes):
-            time.sleep(1)
-
-    except KeyboardInterrupt:
-        click.echo("\n⏹️  Stopping servers...")
-    finally:
-        for p in processes:
-            if p.is_alive():
-                p.terminate()
-                p.join(timeout=2)
-                if p.is_alive():
-                    p.kill()
-        click.echo("🛑 Servers stopped.")
-
 
 # --- PERINTAH-PERINTAH GENERATOR ---
 
@@ -215,7 +230,6 @@ class {class_name}(Base):
         return f"<{class_name}(id={{self.id}})>"
 """
     _create_from_template("Model", ['app', 'Models', file_name], template)
-
 
 # --- GRUP PERINTAH DATABASE ---
 @main_cli.group()
