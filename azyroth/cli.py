@@ -8,8 +8,6 @@ import multiprocessing
 import time
 import sys
 import re
-import threading
-import signal
 
 # --- FUNGSI UTAMA DAN GRUP CLI ---
 
@@ -79,134 +77,65 @@ def inspire():
 
 # --- FUNGSI UNTUK MENJALANKAN SERVER DAN TUNNEL ---
 
-def _start_flask_server(host, port, shared_dict=None):
+def _start_flask_server(host, port, use_reloader=True):
     """Fungsi untuk menjalankan server Flask."""
     try:
         sys.path.insert(0, os.getcwd())
         from public.index import app
-        
-        if shared_dict is not None:
-            shared_dict['server_started'] = True
-            
-        # Jalankan server dengan threading agar tidak blocking
-        app.run(host=host, port=port, use_reloader=False, threaded=True)
-        
+        app.run(host=host, port=port, use_reloader=use_reloader)
     except ImportError:
         click.echo("Error: Could not find the application. Are you in a project root?", err=True)
-        if shared_dict is not None:
-            shared_dict['server_error'] = True
     except Exception as e:
         click.echo(f"An error occurred while starting the server: {e}", err=True)
-        if shared_dict is not None:
-            shared_dict['server_error'] = True
 
-def _start_ssh_tunnel(port, shared_dict=None):
+def _start_ssh_tunnel(port):
     """Fungsi untuk menjalankan tunnel localhost.run dengan error handling yang lebih baik."""
     click.echo("🌐 Starting SSH tunnel with localhost.run...")
-    
-    max_retries = 3
-    retry_count = 0
-    
-    while retry_count < max_retries:
-        try:
-            command = ["ssh", "-o", "StrictHostKeyChecking=no", "-R", f"80:localhost:{port}", "localhost.run"]
-            tunnel_process = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,  # Redirect stderr ke stdout
-                text=True,
-                bufsize=1,
-                universal_newlines=True
-            )
-            
-            url_pattern = re.compile(r"(https?://[\w\-\.]+\.localhost\.run)")
-            tunnel_found = False
-            
-            # Monitor output untuk mencari URL tunnel
-            while True:
-                output = tunnel_process.stdout.readline()
-                if output == '' and tunnel_process.poll() is not None:
-                    break
-                
-                if output:
-                    # Print semua output untuk debugging
-                    click.echo(f"Tunnel output: {output.strip()}")
-                    
-                    match = url_pattern.search(output)
-                    if match and not tunnel_found:
-                        public_url = match.group(1)
-                        # Filter URL yang valid (bukan admin)
-                        if "admin.localhost.run" not in public_url:
-                            click.echo("✅ SSH tunnel established successfully!")
-                            click.echo(f"🌍 Public URL: {public_url}")
-                            click.echo("   Your application is now accessible from anywhere!")
-                            tunnel_found = True
-                            
-                            if shared_dict is not None:
-                                shared_dict['tunnel_url'] = public_url
-                                shared_dict['tunnel_started'] = True
-            
-            # Jika tidak ada URL ditemukan, coba lagi
-            if not tunnel_found:
-                retry_count += 1
-                if retry_count < max_retries:
-                    click.echo(f"⚠️  No tunnel URL found, retrying... ({retry_count}/{max_retries})")
-                    time.sleep(2)
-                    continue
-                else:
-                    click.echo("❌ Failed to establish tunnel after multiple attempts.")
-                    break
-            else:
-                # Tunnel berhasil, tunggu sampai process selesai
-                tunnel_process.wait()
+    try:
+        command = [
+            "ssh", 
+            "-o", "ServerAliveInterval=60", 
+            "-o", "ServerAliveCountMax=3",
+            "-R", f"80:localhost:{port}", 
+            "localhost.run"
+        ]
+        tunnel_process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        url_pattern = re.compile(r"(https?://\S+\.localhost\.run)")
+        url_found = False
+        
+        start_time = time.time()
+        while time.time() - start_time < 20: # Timeout 20 detik
+            line = tunnel_process.stderr.readline()
+            if not line and tunnel_process.poll() is not None:
                 break
-                
-        except FileNotFoundError:
-            click.echo("❌ Error: 'ssh' command not found. Please install an SSH client.", err=True)
-            if shared_dict is not None:
-                shared_dict['tunnel_error'] = "SSH not found"
-            break
-        except KeyboardInterrupt:
-            click.echo("\n⏹️  Tunnel stopped by user.")
-            if 'tunnel_process' in locals():
-                tunnel_process.terminate()
-            break
-        except Exception as e:
-            click.echo(f"❌ An error occurred with the SSH tunnel: {e}", err=True)
-            retry_count += 1
-            if retry_count < max_retries:
-                click.echo(f"⚠️  Retrying tunnel connection... ({retry_count}/{max_retries})")
-                time.sleep(2)
-            else:
-                if shared_dict is not None:
-                    shared_dict['tunnel_error'] = str(e)
-                break
+            
+            match = url_pattern.search(line)
+            if match:
+                public_url = match.group(1)
+                if "admin.localhost.run" not in public_url:
+                    click.echo("✅ SSH tunnel established.")
+                    click.echo(f"   Public URL: {public_url}")
+                    url_found = True
+                    break
+        
+        if not url_found:
+            click.echo("❌ Error: Could not retrieve public URL from localhost.run. Please try again.", err=True)
+            tunnel_process.terminate()
+            return
+            
+        tunnel_process.wait()
 
-def _monitor_processes(flask_process, tunnel_process, shared_dict):
-    """Monitor kedua proses dan berikan feedback ke user."""
-    start_time = time.time()
-    
-    # Tunggu server Flask start (maksimal 10 detik)
-    while time.time() - start_time < 10:
-        if shared_dict.get('server_started'):
-            click.echo("✅ Flask server started successfully")
-            break
-        elif shared_dict.get('server_error'):
-            click.echo("❌ Flask server failed to start")
-            return False
-        time.sleep(0.5)
-    
-    # Tunggu tunnel start (maksimal 30 detik)
-    tunnel_start_time = time.time()
-    while time.time() - tunnel_start_time < 30:
-        if shared_dict.get('tunnel_started'):
-            break
-        elif shared_dict.get('tunnel_error'):
-            click.echo(f"❌ Tunnel failed: {shared_dict.get('tunnel_error')}")
-            return False
-        time.sleep(1)
-    
-    return True
+    except FileNotFoundError:
+        click.echo("Error: 'ssh' command not found. Please install an SSH client.", err=True)
+    except Exception as e:
+        click.echo(f"An error occurred with the SSH tunnel: {e}", err=True)
+
 
 # --- PERINTAH SERVE ---
 
@@ -216,72 +145,36 @@ def _monitor_processes(flask_process, tunnel_process, shared_dict):
 @click.option('--public', is_flag=True, help='Expose the server to the internet using localhost.run.')
 def serve(host, port, public):
     """Runs the Azyroth development server."""
-    # Validasi port
-    try:
-        port = int(port)
-        if not (1 <= port <= 65535):
-            raise ValueError("Port must be between 1 and 65535")
-    except ValueError as e:
-        click.echo(f"Error: Invalid port number. {e}", err=True)
-        return
-    
     if not public:
         click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
-        _start_flask_server(host, port)
+        _start_flask_server(host, port, use_reloader=True)
         return
     
-    # Mode public dengan multiprocessing
-    click.echo(f"🚀 Starting Azyroth server with public access...")
-    click.echo(f"   Local server: http://{host}:{port}")
-    click.echo(f"   Please wait while we establish the public tunnel...\n")
-    
-    # Shared dictionary untuk komunikasi antar proses
-    manager = multiprocessing.Manager()
-    shared_dict = manager.dict()
-    
-    # Start Flask server process
-    flask_process = multiprocessing.Process(
-        target=_start_flask_server, 
-        args=(host, port, shared_dict)
-    )
-    
-    # Start tunnel process
-    tunnel_process = multiprocessing.Process(
-        target=_start_ssh_tunnel, 
-        args=(port, shared_dict)
-    )
+    # --- Logika untuk --public menggunakan multiprocessing ---
+    flask_process = multiprocessing.Process(target=_start_flask_server, args=(host, port, False))
+    tunnel_process = multiprocessing.Process(target=_start_ssh_tunnel, args=(port,))
 
+    processes = [flask_process, tunnel_process]
+    
     try:
+        click.echo(f"🚀 Starting Azyroth server on http://{host}:{port}")
         flask_process.start()
-        time.sleep(1)  # Beri waktu server untuk start
+        time.sleep(2)
         tunnel_process.start()
         
-        # Monitor proses
-        monitor_success = _monitor_processes(flask_process, tunnel_process, shared_dict)
-        
-        if monitor_success:
-            click.echo("\n" + "="*50)
-            click.echo("🎉 Azyroth server is running with public access!")
-            click.echo("="*50)
-            click.echo("Press Ctrl+C to stop the server and tunnel")
-        
-        # Wait for processes
-        flask_process.join()
-        tunnel_process.join()
-        
+        # Loop utama untuk menjaga skrip tetap berjalan
+        while any(p.is_alive() for p in processes):
+            time.sleep(1)
+
     except KeyboardInterrupt:
         click.echo("\n⏹️  Stopping servers...")
-    except Exception as e:
-        click.echo(f"\n❌ An unexpected error occurred: {e}", err=True)
     finally:
-        # Cleanup processes
-        for process in [flask_process, tunnel_process]:
-            if process.is_alive():
-                process.terminate()
-                process.join(timeout=5)
-                if process.is_alive():
-                    process.kill()
-        
+        for p in processes:
+            if p.is_alive():
+                p.terminate()
+                p.join(timeout=2)
+                if p.is_alive():
+                    p.kill()
         click.echo("🛑 Servers stopped.")
 
 
