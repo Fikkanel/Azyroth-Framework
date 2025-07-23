@@ -1,31 +1,23 @@
 {% extends 'admin/layout.html' %}
 {% block content %}
-    <h2>{{ page_title }}</h2>
-    <a href="{{ url_for(endpoint_prefix + '_create') }}">Buat Baru</a>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>{{ page_title }}</h2>
+        <a href="{{ url_for(endpoint_prefix + '_create') }}">Buat Baru</a>
+    </div>
+    <form method="get" style="margin: 1rem 0;">
+        <input type="search" name="q" placeholder="Cari..." value="{{ request.args.get('q', '') }}">
+        <button type="submit">Cari</button>
+    </form>
     <hr>
     <table border="1" width="100%">
-        <thead>
-            <tr>
-                {% for col in list_display %}
-                    <th>{{ col.replace('_', ' ').title() }}</th>
-                {% endfor %}
-                <th>Aksi</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in items %}
-            <tr>
-                {% for col in list_display %}
-                    <td>{{ item[col] }}</td>
-                {% endfor %}
-                <td>
-                    <a href="{{ url_for(endpoint_prefix + '_edit', id=item.id) }}">Edit</a>
-                    <form action="{{ url_for(endpoint_prefix + '_destroy', id=item.id) }}" method="post" style="display:inline;">
-                        <button type="submit" onclick="return confirm('Anda yakin?')">Hapus</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+        </table>
+    <div>
+        {% for page_num in pagination.iter_pages() %}
+            {% if page_num %}
+                <a href="{{ url_for(endpoint_prefix + '_index', page=page_num, q=request.args.get('q', '')) }}">{{ page_num }}</a>
+            {% else %}
+                ...
+            {% endif %}
+        {% endfor %}
+    </div>
 {% endblock %}
