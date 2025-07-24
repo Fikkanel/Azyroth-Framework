@@ -1,58 +1,309 @@
 {% extends 'admin/layout.html' %}
 {% block content %}
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h2>{{ page_title }}</h2>
-        <a href="{{ url_for(endpoint_prefix + '_create') }}">Buat Baru</a>
+    <style>
+        .list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .list-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0;
+        }
+
+        .create-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .create-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+        }
+
+        .search-container {
+            background: white;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            margin-bottom: 30px;
+        }
+
+        .search-form {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 14px 18px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: #fafafa;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-btn {
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .search-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+        }
+
+        .data-table th {
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            padding: 20px;
+            font-weight: 700;
+            color: #475569;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .data-table td {
+            padding: 18px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #374151;
+        }
+
+        .data-table tbody tr {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .data-table tbody tr:hover {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.03), rgba(118, 75, 162, 0.03));
+            transform: scale(1.001);
+        }
+
+        .data-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .edit-btn {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .edit-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
+        }
+
+        .delete-form {
+            display: inline;
+        }
+
+        .delete-btn {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .delete-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .pagination {
+            background: white;
+            padding: 25px;
+            border-radius: 16px;
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .pagination-info {
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .pagination-links {
+            display: flex;
+            gap: 10px;
+        }
+
+        .pagination-link {
+            padding: 10px 18px;
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            color: #475569;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid #e2e8f0;
+        }
+
+        .pagination-link:hover {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .list-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .search-form {
+                flex-direction: column;
+            }
+            
+            .pagination {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .table-container {
+                overflow-x: auto;
+            }
+        }
+    </style>
+
+    <div class="list-header">
+        <h2 class="list-title">{{ page_title }}</h2>
+        <a href="{{ url_for(endpoint_prefix + '_create') }}" class="create-btn">+ Buat Baru</a>
     </div>
 
-    <form method="get" style="margin: 1rem 0;">
-        <input type="search" name="q" placeholder="Cari..." value="{{ request.args.get('q', '') }}">
-        <button type="submit">Cari</button>
-    </form>
-
-    <hr>
+    <div class="search-container">
+        <form method="get" class="search-form">
+            <input type="search" name="q" class="search-input" placeholder="Cari data..." value="{{ request.args.get('q', '') }}">
+            <button type="submit" class="search-btn">🔍 Cari</button>
+        </form>
+    </div>
     
-    <table border="1" width="100%">
-        <thead>
-            <tr>
-                {% for col in list_display %}
-                    <th>{{ col.replace('_', ' ').title() }}</th>
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    {% for col in list_display %}
+                        <th>{{ col.replace('_', ' ').title() }}</th>
+                    {% endfor %}
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    {% for col in list_display %}
+                        <td>{{ item[col] }}</td>
+                    {% endfor %}
+                    <td>
+                        <div class="action-buttons">
+                            <a href="{{ url_for(endpoint_prefix + '_edit', id=item.id) }}" class="edit-btn">✏️ Edit</a>
+                            <form action="{{ url_for(endpoint_prefix + '_destroy', id=item.id) }}" method="post" class="delete-form">
+                                <button type="submit" class="delete-btn" onclick="return confirm('Anda yakin ingin menghapus data ini?')">🗑️ Hapus</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="{{ list_display|length + 1 }}" class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <div>Tidak ada data ditemukan</div>
+                        <div style="margin-top: 8px; font-size: 14px;">Silakan tambah data baru atau ubah kata kunci pencarian</div>
+                    </td>
+                </tr>
                 {% endfor %}
-                <th>Aksi</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in items %}
-            <tr>
-                {% for col in list_display %}
-                    <td>{{ item[col] }}</td>
-                {% endfor %}
-                <td>
-                    <a href="{{ url_for(endpoint_prefix + '_edit', id=item.id) }}">Edit</a>
-                    <form action="{{ url_for(endpoint_prefix + '_destroy', id=item.id) }}" method="post" style="display:inline;">
-                        <button type="submit" onclick="return confirm('Anda yakin?')">Hapus</button>
-                    </form>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="{{ list_display|length + 1 }}" style="text-align: center;">Tidak ada data ditemukan.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            </tbody>
+        </table>
+    </div>
 
-    <div style="margin-top: 1rem;">
-        Halaman {{ page }} dari {{ total_pages }}
+    <div class="pagination">
+        <div class="pagination-info">
+            Halaman {{ page }} dari {{ total_pages }}
+        </div>
         
-        <span style="margin-left: 2rem;">
+        <div class="pagination-links">
             {% if page > 1 %}
-                <a href="{{ url_for(endpoint_prefix + '_index', page=page-1, q=request.args.get('q', '')) }}">&laquo; Sebelumnya</a>
+                <a href="{{ url_for(endpoint_prefix + '_index', page=page-1, q=request.args.get('q', '')) }}" class="pagination-link">← Sebelumnya</a>
             {% endif %}
             
             {% if page < total_pages %}
-                <a href="{{ url_for(endpoint_prefix + '_index', page=page+1, q=request.args.get('q', '')) }}">Selanjutnya &raquo;</a>
+                <a href="{{ url_for(endpoint_prefix + '_index', page=page+1, q=request.args.get('q', '')) }}" class="pagination-link">Selanjutnya →</a>
             {% endif %}
-        </span>
+        </div>
     </div>
 {% endblock %}
