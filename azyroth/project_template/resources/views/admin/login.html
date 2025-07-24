@@ -5,20 +5,314 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Login - Azyroth</title>
     <style>
-        body { font-family: sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .login-card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 350px; }
-        .login-card h1 { text-align: center; margin-top: 0; color: #2c3e50; }
-        .form-group { margin-bottom: 1.5rem; }
-        .form-group label { display: block; margin-bottom: 0.5rem; }
-        .form-group input { width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        .btn { width: 100%; padding: 0.75rem; border: none; border-radius: 4px; background-color: #2c3e50; color: white; font-size: 1rem; cursor: pointer; }
-        .btn:hover { background-color: #34495e; }
-        .flash-danger { background-color: #e74c3c; color: white; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; text-align: center; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Animated Background */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.2) 0%, transparent 50%);
+            z-index: -1;
+        }
+
+        /* Floating Shapes */
+        .floating-shapes {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        .shape {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .shape1 {
+            width: 80px;
+            height: 80px;
+            top: 20%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+
+        .shape2 {
+            width: 120px;
+            height: 120px;
+            top: 60%;
+            right: 15%;
+            animation-delay: 2s;
+        }
+
+        .shape3 {
+            width: 60px;
+            height: 60px;
+            bottom: 20%;
+            left: 20%;
+            animation-delay: 4s;
+        }
+
+        @keyframes float {
+            0%, 100% { 
+                transform: translateY(0px) rotate(0deg); 
+            }
+            50% { 
+                transform: translateY(-30px) rotate(180deg); 
+            }
+        }
+
+        /* Login Card */
+        .login-card { 
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 50px 40px; 
+            border-radius: 24px; 
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.2);
+            width: 100%; 
+            max-width: 420px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+            animation: slideInUp 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 24px 24px 0 0;
+        }
+
+        /* Header */
+        .login-card h1 { 
+            text-align: center; 
+            margin-bottom: 15px;
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .welcome-text {
+            text-align: center;
+            color: #6b7280;
+            margin-bottom: 35px;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        /* Flash Messages */
+        .flash-danger { 
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white; 
+            padding: 16px 20px; 
+            border-radius: 12px; 
+            margin-bottom: 25px; 
+            text-align: center;
+            font-weight: 500;
+            box-shadow: 0 8px 25px rgba(239, 68, 68, 0.3);
+            border-left: 4px solid rgba(255, 255, 255, 0.3);
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        /* Form Styling */
+        .form-group { 
+            margin-bottom: 25px;
+            position: relative;
+            opacity: 0;
+            animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .form-group:nth-child(1) { animation-delay: 0.2s; }
+        .form-group:nth-child(2) { animation-delay: 0.3s; }
+        .form-group:nth-child(3) { animation-delay: 0.4s; }
+
+        .form-group label { 
+            display: block; 
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group input { 
+            width: 100%; 
+            padding: 16px 20px; 
+            border: 2px solid #e5e7eb; 
+            border-radius: 12px; 
+            font-size: 16px;
+            font-family: inherit;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: rgba(248, 250, 252, 0.8);
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .form-group input::placeholder {
+            color: #9ca3af;
+        }
+
+        /* Submit Button */
+        .btn { 
+            width: 100%; 
+            padding: 16px 20px; 
+            border: none; 
+            border-radius: 12px; 
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white; 
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-top: 10px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn:hover { 
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:active {
+            transform: translateY(-1px);
+        }
+
+        /* Security Note */
+        .security-note {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .security-icon {
+            margin-bottom: 8px;
+            font-size: 20px;
+        }
+
+        /* Animations */
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 480px) {
+            .login-card {
+                margin: 20px;
+                padding: 40px 30px;
+            }
+            
+            .login-card h1 {
+                font-size: 28px;
+            }
+            
+            .welcome-text {
+                font-size: 14px;
+            }
+        }
+
+        @media (max-width: 320px) {
+            .login-card {
+                padding: 30px 20px;
+            }
+        }
     </style>
 </head>
 <body>
+    <div class="floating-shapes">
+        <div class="shape shape1"></div>
+        <div class="shape shape2"></div>
+        <div class="shape shape3"></div>
+    </div>
+
     <div class="login-card">
-        <h1>Admin Login</h1>
+        <h1>Azyroth Admin</h1>
+        <p class="welcome-text">Selamat datang kembali!<br>Masuk untuk mengakses panel admin</p>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -30,15 +324,31 @@
 
         <form action="{{ url_for('admin_login') }}" method="post">
             <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" required>
+                <label for="username">
+                    <span>👤</span>
+                    <span>Username</span>
+                </label>
+                <input type="text" id="username" name="username" placeholder="Masukkan username Anda" required>
             </div>
+            
             <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
+                <label for="password">
+                    <span>🔒</span>
+                    <span>Password</span>
+                </label>
+                <input type="password" id="password" name="password" placeholder="Masukkan password Anda" required>
             </div>
-            <button type="submit" class="btn">Login</button>
+            
+            <button type="submit" class="btn">
+                <span>🚀</span>
+                <span>Masuk ke Dashboard</span>
+            </button>
         </form>
+
+        <div class="security-note">
+            <div class="security-icon">🔐</div>
+            <div>Akses dilindungi dengan keamanan tingkat enterprise</div>
+        </div>
     </div>
 </body>
 </html>
