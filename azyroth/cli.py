@@ -262,6 +262,31 @@ class {resource_class_name}:
 """
     _create_from_template("Resource", ['app', 'Admin', 'Resources', file_name], template)
 
+@main_cli.command("make:crud")
+@click.argument('name')
+@click.pass_context
+def make_crud(ctx, name):
+    """Creates a full CRUD scaffold (Model, Resource, Migration)."""
+    capitalized_name = name.capitalize()
+    
+    click.echo(f"🚀 Scaffolding CRUD for '{capitalized_name}'...")
+    
+    # 1. Panggil make:model
+    click.echo("\nStep 1/3: Creating Model...")
+    ctx.invoke(make_model, name=capitalized_name)
+    
+    # 2. Panggil make:resource
+    click.echo("\nStep 2/3: Creating Admin Resource...")
+    ctx.invoke(make_resource, name=capitalized_name)
+    
+    # 3. Panggil make:migration
+    click.echo("\nStep 3/3: Creating Database Migration...")
+    migration_message = f"Create {capitalized_name.lower()}s table"
+    ctx.invoke(make_migration, message=migration_message)
+    
+    click.echo(f"\n🎉 CRUD scaffold for '{capitalized_name}' created successfully!")
+    click.echo("   Next, run 'azyroth db:migrate' to update your database.")
+
 
 # --- GRUP PERINTAH DATABASE ---
 @main_cli.group()
