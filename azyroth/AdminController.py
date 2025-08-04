@@ -11,6 +11,17 @@ class AdminController:
         self.resource_name = self.model.__tablename__
         self.endpoint_prefix = f'admin.{self.resource_name}'
 
+    def _prepare_form_schema(self):
+        """Mempersiapkan form_schema dengan mengambil data untuk relasi."""
+        prepared_schema = []
+        for field in self.resource.form_schema:
+            new_field = field.copy()
+            if new_field.get('type') == 'relationship':
+                related_model = new_field['model']
+                new_field['options'] = g.db_session.query(related_model).all()
+            prepared_schema.append(new_field)
+        return prepared_schema
+
     def index(self):
         """Menampilkan halaman daftar dengan pencarian dan paginasi manual."""
         page = request.args.get('page', 1, type=int)
@@ -36,10 +47,8 @@ class AdminController:
         return render_template(
             'admin/list.html', 
             items=items,
-            # Mengirim data paginasi ke template
             page=page,
             total_pages=total_pages,
-            # Variabel lainnya
             resource_name=self.resource_name,
             endpoint_prefix=self.endpoint_prefix,
             list_display=self.resource.list_display,
@@ -48,9 +57,10 @@ class AdminController:
 
     def create(self):
         """Menampilkan form untuk membuat item baru."""
+        form_schema = self._prepare_form_schema()
         return render_template(
             'admin/form.html',
-            form_schema=self.resource.form_schema,
+            form_schema=form_schema,
             item=None,
             page_title=f"Buat {self.resource_name.capitalize()} Baru",
             endpoint_prefix=self.endpoint_prefix
@@ -71,9 +81,12 @@ class AdminController:
         """Menampilkan form untuk mengedit item yang ada."""
         item = g.db_session.query(self.model).get(id)
         if not item: abort(404)
+        
+        form_schema = self._prepare_form_schema()
+        
         return render_template(
             'admin/form.html',
-            form_schema=self.resource.form_schema,
+            form_schema=form_schema,
             item=item,
             page_title=f"Edit {self.resource_name.capitalize()}",
             endpoint_prefix=self.endpoint_prefix
