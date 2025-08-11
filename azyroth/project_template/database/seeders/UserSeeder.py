@@ -1,11 +1,10 @@
 from app.Models.User import User
-from flask import g
+# Hapus 'from flask import g' karena tidak lagi digunakan
 
 class UserSeeder:
-    def run(self):
+    def run(self, session): # <-- Terima 'session' sebagai argumen
         """Menjalankan database seeder untuk user."""
-        session = g.db_session
-
+        
         # Hanya jalankan jika tabel user masih kosong
         if session.query(User).count() == 0:
             # Buat user admin contoh
