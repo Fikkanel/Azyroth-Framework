@@ -3,8 +3,10 @@ from flask import g
 
 class ProjectSeeder:
     def run(self):
+        """Menjalankan database seeder untuk proyek."""
         session = g.db_session
         
+        # Hanya jalankan jika tabel proyek masih kosong
         if session.query(Project).count() == 0:
             projects_data = [
                 {
@@ -25,3 +27,5 @@ class ProjectSeeder:
 
             session.commit()
             print("Project seeder has been run.")
+        else:
+            print("Projects table is not empty, skipping seeder.")
