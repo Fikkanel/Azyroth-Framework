@@ -323,7 +323,7 @@ def make_migration(message):
     """[Alias] Creates a new migration file."""
     _run_alembic_command(message)
 
-# Ganti seluruh fungsi db_seed dengan versi ini
+# --- (Kode lain di cli.py tetap sama) ---
 
 @db.command("seed")
 @click.option('--class', 'seeder_class', help="The specific seeder class to run.")
@@ -334,7 +334,6 @@ def db_seed(seeder_class):
         from bootstrap.app import create_app
         app = create_app()
         with app.app_context():
-            # --- PERBAIKAN DI SINI ---
             # Membuat sesi database manual untuk CLI
             Session = app.db_session
             db_session = Session()
@@ -349,7 +348,7 @@ def db_seed(seeder_class):
                     module_name = f"database.seeders.{seeder_class}"
                     mod = importlib.import_module(module_name)
                     seeder = getattr(mod, seeder_class)()
-                    seeder.run(db_session) # <-- Berikan sesi ke seeder
+                    seeder.run(db_session) # Berikan sesi ke seeder
                     click.echo(f"Seeder '{seeder_class}' completed.")
                 else:
                     for filename in os.listdir(seeder_path):
@@ -360,7 +359,7 @@ def db_seed(seeder_class):
                                 if hasattr(obj, 'run') and name != 'Base':
                                     click.echo(f"Running seeder: {name}")
                                     seeder = obj()
-                                    seeder.run(db_session) # <-- Berikan sesi ke seeder
+                                    seeder.run(db_session) # Berikan sesi ke seeder
                 
                 click.echo("Database seeding completed.")
             
@@ -369,7 +368,6 @@ def db_seed(seeder_class):
                 
     except Exception as e:
         click.echo(f"An error occurred: {e}", err=True)
-
 
 if __name__ == '__main__':
     main_cli()
