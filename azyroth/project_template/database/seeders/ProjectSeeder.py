@@ -1,12 +1,8 @@
 from app.Models.Project import Project
-from flask import g
 
 class ProjectSeeder:
-    def run(self):
+    def run(self, session):
         """Menjalankan database seeder untuk proyek."""
-        session = g.db_session
-        
-        # Hanya jalankan jika tabel proyek masih kosong
         if session.query(Project).count() == 0:
             projects_data = [
                 {
@@ -28,4 +24,4 @@ class ProjectSeeder:
             session.commit()
             print("Project seeder has been run.")
         else:
-            print("Projects table is not empty, skipping seeder.")
+            print("Projects table is not empty, skipping ProjectSeeder.")
